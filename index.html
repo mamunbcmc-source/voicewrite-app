@@ -402,6 +402,9 @@
   }
   .mic-controls button:disabled{opacity:0.4; cursor:not-allowed;}
 
+  .col-chip{ display:inline-block; padding:5px 12px; border-radius:999px; background:var(--accent-soft); border:1px solid var(--accent); font-size:12px; font-weight:700; color:var(--accent-deep); }
+  .upload-btn{ width:100%; padding:12px 0; border-radius:12px; border:1.5px dashed var(--line); background:var(--paper); font-family:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
+
   .transcript-box{
     background:var(--paper);
     border:1px solid var(--line);
@@ -684,7 +687,17 @@
             <button onclick="saveCurrentPreset()">⭐ এই Prompt Save করুন</button>
           </div>
 
-          <button class="btn-primary" onclick="runAI()">🚀 Generate</button>
+          <div class="section-label">📎 Excel Template (ঐচ্ছিক)</div>
+          <div class="prompt-helper">আপনার পছন্দের column format-এর একটা Excel/CSV ফাইল upload করুন — AI সেই একই কাঠামোয় ফলাফল সাজিয়ে দেবে, আর 📊 Excel বাটনে সেই column অনুযায়ী ফাইল তৈরি হবে।</div>
+          <input type="file" id="excel-template-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleExcelTemplateUpload(event)">
+          <button class="upload-btn" onclick="document.getElementById('excel-template-input').click()">📎 Excel Template আপলোড করুন</button>
+          <div id="excel-template-preview" style="display:none; margin-top:12px; margin-bottom:6px;">
+            <div class="section-label" style="margin-top:0;">Detected Columns</div>
+            <div id="excel-template-columns" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;"></div>
+            <button onclick="clearExcelTemplate()" style="font-size:12px; color:var(--record); background:none; border:none; cursor:pointer; padding:0;">🗑️ Template সরিয়ে ফেলুন</button>
+          </div>
+
+          <button class="btn-primary" style="margin-top:16px;" onclick="runAI()">🚀 Generate</button>
           <div class="logout-link" onclick="goto('view-home')">← ফিরে যান</div>
         </div>
       </div>
@@ -791,6 +804,8 @@ let currentUser = null; // {id, role}
 let selectedLang = 'bn-BD';
 let transcriptText = '';
 let selectedPresetId = null;
+let excelTemplateColumns = null; // e.g. ['Name','Task','Deadline'] — set after uploading a template file
+let excelTemplateFileName = null;
 let recognition = null;
 let isRecording = false;
 let isPaused = false;
@@ -1177,6 +1192,53 @@ async function buildPresetRow(){
   });
 }
 
+/* ================= Excel Template Upload ================= */
+function handleExcelTemplateUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const firstSheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+      const headerRow = (rows[0] || []).map(c => String(c||'').trim()).filter(c => c.length>0);
+      if(!headerRow.length){
+        alert('এই ফাইলে কোনো column header পাওয়া যায়নি। প্রথম row-এ column নাম আছে এমন একটা ফাইল দিন।');
+        event.target.value = '';
+        return;
+      }
+      excelTemplateColumns = headerRow;
+      excelTemplateFileName = file.name;
+      renderExcelTemplatePreview();
+    }catch(err){
+      alert('ফাইলটি পড়া যায়নি — এটি একটি valid .xlsx/.xls/.csv ফাইল কিনা দেখুন।');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderExcelTemplatePreview(){
+  const wrap = document.getElementById('excel-template-preview');
+  const chipRow = document.getElementById('excel-template-columns');
+  if(!excelTemplateColumns){
+    wrap.style.display = 'none';
+    return;
+  }
+  chipRow.innerHTML = excelTemplateColumns.map(c => `<span class="col-chip">${escapeHTML(c)}</span>`).join('');
+  wrap.style.display = 'block';
+}
+
+function clearExcelTemplate(){
+  excelTemplateColumns = null;
+  excelTemplateFileName = null;
+  const input = document.getElementById('excel-template-input');
+  if(input) input.value = '';
+  renderExcelTemplatePreview();
+}
+
 async function saveCurrentPreset(){
   const text = document.getElementById('prompt-input').value.trim();
   if(!text){ alert('আগে prompt লিখুন।'); return; }
@@ -1200,6 +1262,15 @@ async function runAI(){
   document.getElementById('ai-loading').style.display = 'flex';
   document.getElementById('result-content').style.display = 'none';
 
+  // If the user uploaded an Excel template, ask the AI to return the data
+  // as a pipe-separated table matching that exact column structure —
+  // downloadExcel() below detects this format and builds a real
+  // multi-column spreadsheet from it instead of one line per row.
+  let fullPrompt = customPrompt;
+  if(excelTemplateColumns && excelTemplateColumns.length){
+    fullPrompt += `\n\nফলাফলটি অবশ্যই নিচের column structure অনুযায়ী একটি pipe-separated (|) table আকারে দিতে হবে — প্রথম লাইনে ঠিক এই column নামগুলো, তারপর প্রতিটি row একটি করে নতুন লাইনে, transcript থেকে প্রাসঙ্গিক তথ্য বের করে প্রতিটি column পূরণ করো (কোনো তথ্য না পেলে সেই ঘরে "-" লিখো):\n${excelTemplateColumns.join(' | ')}\n\nশুধু header লাইন ও data লাইনগুলো দাও, অন্য কোনো ব্যাখ্যা বা markdown formatting ছাড়া।`;
+  }
+
   try{
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -1208,7 +1279,7 @@ async function runAI(){
         model: "claude-sonnet-4-6",
         max_tokens: 1500,
         messages: [
-          { role: "user", content: `${customPrompt}\n\nTranscript:\n"""${transcriptText || '(কোনো transcript পাওয়া যায়নি)'}"""\n\nশুধু চূড়ান্ত লেখাটি দাও, কোনো preamble ছাড়া।` }
+          { role: "user", content: `${fullPrompt}\n\nTranscript:\n"""${transcriptText || '(কোনো transcript পাওয়া যায়নি)'}"""\n\nশুধু চূড়ান্ত লেখাটি দাও, কোনো preamble ছাড়া।` }
         ],
       })
     });
@@ -1412,10 +1483,37 @@ async function shareResult(){
 function downloadExcel(){
   const text = document.getElementById('result-text').value;
   const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  const rows = [['VoiceWrite AI — Result'], ['']];
-  lines.forEach(line=>{ rows.push([line]); });
+
+  // If an Excel template was used, the AI was asked to reply as a
+  // pipe-separated table whose first line matches the template's column
+  // names. Detect that here and build a real multi-column sheet from it.
+  let rows;
+  let usedTemplate = false;
+  if(excelTemplateColumns && excelTemplateColumns.length && lines.length){
+    const headerCells = lines[0].split('|').map(c=>c.trim());
+    const looksLikeTemplateTable = headerCells.length === excelTemplateColumns.length
+      && headerCells.every((c,i)=> c.toLowerCase() === excelTemplateColumns[i].toLowerCase());
+    if(looksLikeTemplateTable){
+      usedTemplate = true;
+      rows = [excelTemplateColumns];
+      for(let i=1; i<lines.length; i++){
+        const cells = lines[i].split('|').map(c=>c.trim());
+        if(cells.length === excelTemplateColumns.length){
+          rows.push(cells);
+        }
+      }
+    }
+  }
+
+  if(!usedTemplate){
+    rows = [['VoiceWrite AI — Result'], ['']];
+    lines.forEach(line=>{ rows.push([line]); });
+  }
+
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch: 90}];
+  ws['!cols'] = usedTemplate
+    ? excelTemplateColumns.map(()=>({wch: 24}))
+    : [{wch: 90}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Result');
   XLSX.writeFile(wb, 'voicewrite-result.xlsx');
