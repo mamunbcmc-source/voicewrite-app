@@ -992,7 +992,13 @@ async function startRecording(){
   // it may end up silent when Speech Recognition also holds the mic — a
   // known browser limitation, not something fixable purely in JS.
   if(recognition){ try{ recognition.start(); }catch(e){} }
-  startAudioCapture();
+  // Give Speech Recognition's mic session a brief head start before the
+  // separate getUserMedia() call for audio-download capture — on many
+  // Android devices, whichever consumer claims the mic second risks getting
+  // a muted/duplicate stream, silencing live transcript. This delay isn't a
+  // guaranteed fix (it's an OS/browser-level limitation) but reduces the
+  // odds of the conflict in practice.
+  setTimeout(()=>{ startAudioCapture(); }, 400);
   isRecording = true; isPaused = false;
   document.getElementById('mic-btn').classList.add('recording');
   document.getElementById('live-tag').style.display = 'inline-block';
