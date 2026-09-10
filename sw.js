@@ -4,7 +4,7 @@
 // backend calls still need an active internet connection — only the app
 // screen itself is cached for offline use.
 
-const CACHE_NAME = 'voicewrite-shell-v1';
+const CACHE_NAME = 'voicewrite-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
