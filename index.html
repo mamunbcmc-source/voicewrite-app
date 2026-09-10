@@ -626,7 +626,7 @@
             <button id="lang-bn" class="on" onclick="setLang('bn-BD')">বাংলা</button>
             <button id="lang-en" onclick="setLang('en-US')">English</button>
           </div>
-          <div class="lang-note">আপনার meeting বাংলা + English mixed হলেও সমস্যা নেই — যে ভাষায় বলা হয়েছে, সেই ভাষাতেই transcript থাকবে।</div>
+          <div class="lang-note">আপনার meeting বাংলা + English mixed হলেও সমস্যা নেই — Convert to Text করার সময় যে ভাষায় বলা হয়েছে, সেই ভাষাতেই transcript হবে।</div>
 
           <div class="mic-panel" id="mic-panel">
             <div class="live-tag" id="live-tag" style="display:none;">🔴 LIVE MEETING</div>
@@ -640,24 +640,29 @@
             </div>
           </div>
 
-          <div class="section-label">Live Transcript <span style="font-weight:400; text-transform:none; letter-spacing:0;">(এখানে সরাসরি টাইপও করা যাবে)</span></div>
-          <div class="transcript-box empty" id="transcript-box" contenteditable="true" oninput="onTranscriptEdit()">এখানে আপনার কথা লেখা আকারে দেখা যাবে, অথবা সরাসরি টাইপ করুন…</div>
-
-          <div id="audio-player-wrap" style="display:none; margin:12px 0;">
-            <div class="section-label">🔊 আপনার Recording শুনুন</div>
-            <audio id="audio-player" controls style="width:100%; border-radius:12px; margin-bottom:8px;"></audio>
-            <button onclick="downloadAudio()" style="width:100%; padding:10px 0; border-radius:12px; border:1px solid var(--line); background:var(--paper); font-family:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;">⬇️ Audio Download করুন</button>
+          <div class="section-label" style="margin-top:18px;">কীভাবে কাজ করে</div>
+          <div class="history-item" style="cursor:default;">
+            <div class="h-preview">🎙️ Record চাপুন → পুরো মিটিং শেষ না হওয়া পর্যন্ত চালিয়ে যান → ⏹ Stop চাপলেই রেকর্ডিং "🗂️ Meetings" তালিকায় সংরক্ষণ হয়ে যাবে। সেখান থেকে যেকোনো সময় "📝 Convert to Text" চাপুন — Bangla/English/mixed speech থেকে transcript তৈরি হবে।</div>
           </div>
-
-          <div class="result-actions" style="margin-bottom:14px;">
-            <button onclick="copyTranscript()">📋 Copy Text</button>
-            <button onclick="downloadTranscriptText()">⬇️ Text Download</button>
-            <button onclick="clearTranscript()">🗑️ নতুন Recording (মুছে ফেলুন)</button>
-          </div>
-          <button class="btn-primary" id="to-ai-btn" style="opacity:0.4; pointer-events:none;" onclick="goto('view-mode')">🤖 Send to AI →</button>
+          <button class="btn-primary" style="margin-top:14px;" onclick="goto('view-meetings')">🗂️ Recorded Meetings দেখুন →</button>
         </div>
         <div class="bottom-nav">
           <button class="on" onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
+          <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+        </div>
+      </div>
+
+      <!-- RECORDED MEETINGS LIST VIEW -->
+      <div class="view" id="view-meetings">
+        <div class="topbar">
+          <div class="brand">🗂️ Recorded Meetings</div>
+        </div>
+        <div class="body-scroll" id="meetings-list"></div>
+        <div class="bottom-nav">
+          <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button class="on" onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
         </div>
@@ -709,6 +714,7 @@
         </div>
         <div class="bottom-nav">
           <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
         </div>
@@ -722,6 +728,7 @@
         <div class="body-scroll" id="history-list"></div>
         <div class="bottom-nav" id="history-nav">
           <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
         </div>
@@ -767,6 +774,7 @@
         </div>
         <div class="bottom-nav" id="settings-nav">
           <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button class="on" onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
         </div>
@@ -793,6 +801,108 @@ let mediaRecorder = null;
 let audioChunks = [];
 let allAudioBlobs = [];
 let currentAudioURL = null;
+
+// window.storage (used by Claude's Artifact preview) only exists inside
+// Claude's chat iframe — it is NOT available once this app is deployed on
+// its own domain (e.g. GitHub Pages). This app now runs standalone, so all
+// persistence goes through plain localStorage instead, wrapped with the
+// same async get/set/list/delete shape so the rest of the code is unchanged.
+const localDB = {
+  async set(key, value){
+    try{ localStorage.setItem(key, value); return {key, value}; }
+    catch(e){ return null; }
+  },
+  async get(key){
+    const v = localStorage.getItem(key);
+    if(v === null) throw new Error('not found: ' + key);
+    return {key, value: v};
+  },
+  async delete(key){
+    localStorage.removeItem(key);
+    return {key, deleted: true};
+  },
+  async list(prefix){
+    const keys = Object.keys(localStorage).filter(k => !prefix || k.startsWith(prefix));
+    return {keys};
+  }
+};
+
+// ================= Recordings DB (IndexedDB) =================
+// Full meeting audio recordings are stored here (metadata + the audio Blob
+// itself). IndexedDB is used instead of localStorage because localStorage
+// only holds small text strings (~5-10MB total) — audio recordings need
+// much more room and IndexedDB stores binary Blobs natively.
+const RECORDINGS_DB_NAME = 'voicewriteRecordingsDB';
+const RECORDINGS_STORE = 'recordings';
+let recordingsDBPromise = null;
+
+function openRecordingsDB(){
+  if(recordingsDBPromise) return recordingsDBPromise;
+  recordingsDBPromise = new Promise((resolve, reject)=>{
+    const req = indexedDB.open(RECORDINGS_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(RECORDINGS_STORE)){
+        db.createObjectStore(RECORDINGS_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return recordingsDBPromise;
+}
+
+async function dbAddRecording(entry){
+  const db = await openRecordingsDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(RECORDINGS_STORE, 'readwrite');
+    tx.objectStore(RECORDINGS_STORE).put(entry);
+    tx.oncomplete = () => resolve(entry);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbGetAllRecordings(){
+  const db = await openRecordingsDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(RECORDINGS_STORE, 'readonly');
+    const req = tx.objectStore(RECORDINGS_STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbUpdateRecording(id, patch){
+  const db = await openRecordingsDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(RECORDINGS_STORE, 'readwrite');
+    const store = tx.objectStore(RECORDINGS_STORE);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      if(!existing) return resolve(null);
+      const updated = Object.assign({}, existing, patch);
+      store.put(updated);
+      resolve(updated);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+async function dbDeleteRecording(id){
+  const db = await openRecordingsDB();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(RECORDINGS_STORE, 'readwrite');
+    tx.objectStore(RECORDINGS_STORE).delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbNextRecordingNumber(){
+  const all = await dbGetAllRecordings();
+  return all.reduce((max, r) => Math.max(max, r.number || 0), 0) + 1;
+}
 
 // Real backend (Phase 2/3) — Google Cloud STT + AI writing. Deployed and
 // live; used here so the browser prototype gets accurate transcription
@@ -877,13 +987,13 @@ function changePassword(){
 function goto(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  // sync bottom nav highlight for shared nav bars (home/history/settings appear in several views)
-  document.querySelectorAll('.bottom-nav').forEach(nav=>{
-    nav.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  // sync bottom nav highlight for shared nav bars (home/meetings/history/settings appear in several views)
+  const navMap = { 'view-home':0, 'view-mode':0, 'view-meetings':1, 'view-result':2, 'view-history':2, 'view-settings':3 };
+  const activeIdx = navMap[id];
+  document.querySelectorAll(`.view#${id} .bottom-nav`).forEach(nav=>{
+    nav.querySelectorAll('button').forEach((b,i)=> b.classList.toggle('on', i===activeIdx));
   });
-  if(id==='view-history'){
-    document.querySelectorAll('#history-nav button, .bottom-nav button').forEach(()=>{});
-  }
+  if(id==='view-meetings') loadMeetings();
   if(id==='view-history') loadHistory();
 }
 
@@ -895,68 +1005,16 @@ function setLang(lang){
   if(recognition) recognition.lang = lang;
 }
 
-/* ================= Voice Recording (Web Speech API) ================= */
-function getRecognition(){
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR) return null;
-  const r = new SR();
-  r.continuous = true;
-  r.interimResults = true;
-  r.lang = selectedLang;
-  r.onresult = (e)=>{
-    let finalChunk = '';
-    let interim = '';
-    for(let i=e.resultIndex; i<e.results.length; i++){
-      const t = e.results[i][0].transcript;
-      if(e.results[i].isFinal) finalChunk += t + ' ';
-      else interim += t;
-    }
-    if(finalChunk) transcriptText += finalChunk;
-    renderTranscript(transcriptText + interim);
-  };
-  r.onerror = (e)=>{
-    // no-speech / network / aborted are common transient hiccups on mobile —
-    // don't show a scary error for these, just let onend's restart handle it.
-    if(e.error !== 'no-speech' && e.error !== 'network' && e.error !== 'aborted'){
-      document.getElementById('mic-status').textContent = 'Speech recognition error: ' + e.error;
-    }
-  };
-  r.onend = ()=>{
-    if(isRecording && !isPaused){
-      // Small delay avoids "recognition has already started" errors that
-      // happen when start() is called immediately inside onend on some
-      // mobile browsers.
-      setTimeout(()=>{
-        if(isRecording && !isPaused){
-          try{ r.start(); }catch(err){}
-        }
-      }, 250);
-    }
-  };
-  return r;
-}
-
-function renderTranscript(text){
-  const box = document.getElementById('transcript-box');
-  if(text.trim()){
-    box.textContent = text;
-    box.classList.remove('empty');
-    document.getElementById('to-ai-btn').style.opacity = 1;
-    document.getElementById('to-ai-btn').style.pointerEvents = 'auto';
-  } else {
-    box.textContent = 'এখানে আপনার কথা লেখা আকারে দেখা যাবে, অথবা সরাসরি টাইপ করুন…';
-    box.classList.add('empty');
-  }
-}
-
-function onTranscriptEdit(){
-  const box = document.getElementById('transcript-box');
-  transcriptText = box.textContent;
-  const hasText = transcriptText.trim().length > 0;
-  box.classList.toggle('empty', !hasText);
-  document.getElementById('to-ai-btn').style.opacity = hasText ? 1 : 0.4;
-  document.getElementById('to-ai-btn').style.pointerEvents = hasText ? 'auto' : 'none';
-}
+/* ================= Voice Recording (single audio stream — no live preview) ================= */
+// Live Transcript (Web Speech API) has been removed from the recording flow.
+// It required a *second*, separate microphone session running alongside the
+// audio-download capture, and on most Android phones only one of the two
+// ever actually got real audio — the other went silent. Recording now uses
+// ONE microphone stream for the whole meeting; conversion to text happens
+// afterward, in one batch call to the backend (Google Cloud STT), from the
+// Meetings list. This is slower to see text (no live captions) but is 100%
+// reliable for both audio capture and, once Google Cloud billing is
+// enabled, the transcript.
 
 function toggleRecording(){
   if(!isRecording) startRecording();
@@ -964,53 +1022,51 @@ function toggleRecording(){
 }
 
 async function startRecording(){
-  recognition = getRecognition();
-  if(!recognition){
-    // No live preview available in this browser — that's OK, the real
-    // transcript comes from the backend after Stop, not from this preview.
-    document.getElementById('mic-status').textContent = 'এই ব্রাউজারে live preview নেই, কিন্তু recording চলবে — Stop করলে transcript আসবে।';
+  if(!navigator.mediaDevices?.getUserMedia){
+    document.getElementById('mic-status').textContent = 'এই ব্রাউজারে মাইক্রোফোন রেকর্ডিং সাপোর্ট নেই।';
+    return;
   }
-  // Only wipe the transcript/timer if there's nothing recorded yet — tapping
-  // the mic again after a stop should CONTINUE adding to the existing text,
-  // not erase it. (This was the bug causing earlier speech to disappear.)
-  const isFreshStart = !transcriptText.trim();
-  if(isFreshStart){
-    transcriptText = '';
-    renderTranscript('');
-    timerSeconds = 0;
-    allAudioBlobs = [];
-    if(currentAudioURL){ URL.revokeObjectURL(currentAudioURL); currentAudioURL = null; }
-    document.getElementById('audio-player-wrap').style.display = 'none';
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  }catch(e){
+    document.getElementById('mic-status').textContent = 'মাইক্রোফোন পারমিশন পাওয়া যায়নি।';
+    return;
   }
-  // Acquire the raw audio stream FIRST, before Speech Recognition opens its
-  // own internal mic session — on many Android devices, whichever consumer
-  // claims the mic second gets a muted/silent duplicate stream. Grabbing
-  // this one first gives it the best chance of actually capturing sound.
-  // Live transcript is the core feature — start it immediately, don't make
-  // it wait on the audio permission prompt. Audio capture (for playback)
-  // runs in the background on a best-effort basis; on some Android devices
-  // it may end up silent when Speech Recognition also holds the mic — a
-  // known browser limitation, not something fixable purely in JS.
-  if(recognition){ try{ recognition.start(); }catch(e){} }
-  // On mobile, running audio-download capture (getUserMedia/MediaRecorder)
-  // at the same time as Speech Recognition frequently causes one of the two
-  // to get a muted/silent mic stream — this is an OS/browser-level limit,
-  // not something fixable purely in JS. Live transcript is the priority
-  // right now, so on mobile we skip the parallel audio capture entirely
-  // while recognition is active, giving it sole access to the mic. Desktop
-  // browsers don't have this contention, so audio capture still runs there
-  // (and continues to double as the source for the real backend transcript
-  // once Google Cloud billing is enabled).
-  const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if(!(recognition && isMobileDevice)){
-    setTimeout(()=>{ startAudioCapture(); }, 400);
-  } else {
-    document.getElementById('mic-status').textContent = 'রেকর্ড হচ্ছে (live transcript priority — audio download এই মুহূর্তে বন্ধ)…';
+  mediaStream = stream;
+  audioChunks = [];
+  allAudioBlobs = [];
+  timerSeconds = 0;
+  document.getElementById('mic-timer').textContent = '00:00';
+  try{
+    mediaRecorder = new MediaRecorder(stream);
+  }catch(e){
+    stream.getTracks().forEach(t=>t.stop());
+    document.getElementById('mic-status').textContent = 'রেকর্ডিং শুরু করা যায়নি।';
+    return;
   }
+  mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async ()=>{
+    if(audioChunks.length){
+      allAudioBlobs.push(new Blob(audioChunks, {type:'audio/webm'}));
+    }
+    mediaStream && mediaStream.getTracks().forEach(t=>t.stop());
+    if(!isRecording){
+      // A full meeting just finished (not just a pause) — save it.
+      await saveFinishedMeeting();
+    }
+  };
+  // timeslice (250ms) forces regular dataavailable events instead of one big
+  // chunk only at stop — helps on some Android WebViews where a single huge
+  // chunk can end up empty/corrupt.
+  mediaRecorder.start(250);
+
   isRecording = true; isPaused = false;
   document.getElementById('mic-btn').classList.add('recording');
   document.getElementById('live-tag').style.display = 'inline-block';
-  if(recognition && !isMobileDevice) document.getElementById('mic-status').textContent = 'রেকর্ড হচ্ছে…';
+  document.getElementById('mic-status').textContent = 'রেকর্ড হচ্ছে…';
   document.getElementById('btn-pause').disabled = false;
   document.getElementById('btn-stop').disabled = false;
   document.getElementById('btn-resume').disabled = true;
@@ -1025,7 +1081,6 @@ async function startRecording(){
 function pauseRecording(){
   if(!isRecording) return;
   isPaused = true;
-  if(recognition){ try{ recognition.stop(); }catch(e){} }
   if(mediaRecorder && mediaRecorder.state==='recording'){ try{ mediaRecorder.pause(); }catch(e){} }
   clearInterval(timerInterval);
   document.getElementById('mic-btn').classList.remove('recording');
@@ -1037,7 +1092,6 @@ function pauseRecording(){
 function resumeRecording(){
   if(!isRecording) return;
   isPaused = false;
-  if(recognition){ try{ recognition.start(); }catch(e){} }
   if(mediaRecorder && mediaRecorder.state==='paused'){ try{ mediaRecorder.resume(); }catch(e){} }
   timerInterval = setInterval(()=>{
     timerSeconds++;
@@ -1053,21 +1107,49 @@ function resumeRecording(){
 
 function stopRecording(){
   isRecording = false; isPaused = false;
-  if(recognition){ try{ recognition.stop(); }catch(e){} }
   if(mediaRecorder && mediaRecorder.state!=='inactive'){ try{ mediaRecorder.stop(); }catch(e){} }
   clearInterval(timerInterval);
   document.getElementById('mic-btn').classList.remove('recording');
   document.getElementById('live-tag').style.display = 'none';
-  document.getElementById('mic-status').textContent = transcriptText.trim() ? 'রেকর্ড সম্পন্ন হয়েছে' : 'রেকর্ড করতে মাইক্রোফোনে চাপ দিন';
+  document.getElementById('mic-status').textContent = 'সংরক্ষণ হচ্ছে…';
   document.getElementById('btn-pause').disabled = true;
   document.getElementById('btn-resume').disabled = true;
   document.getElementById('btn-stop').disabled = true;
 }
 
+async function saveFinishedMeeting(){
+  if(!allAudioBlobs.length){
+    document.getElementById('mic-status').textContent = 'রেকর্ড করতে মাইক্রোফোনে চাপ দিন';
+    return;
+  }
+  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
+  const number = await dbNextRecordingNumber();
+  const entry = {
+    id: 'rec_' + Date.now(),
+    number,
+    dateISO: new Date().toISOString(),
+    durationSeconds: timerSeconds,
+    lang: selectedLang,
+    audioBlob: combined,
+    transcript: null,
+    transcribing: false
+  };
+  try{
+    await dbAddRecording(entry);
+  }catch(e){
+    document.getElementById('mic-status').textContent = 'রেকর্ড হয়েছে, কিন্তু সংরক্ষণে সমস্যা হয়েছে।';
+    return;
+  }
+  document.getElementById('mic-status').textContent = `Meeting #${number} সংরক্ষণ হয়েছে ✓`;
+  document.getElementById('mic-timer').textContent = '00:00';
+  timerSeconds = 0;
+  await loadMeetings();
+}
+
 /* ================= Saved Prompts (presets) ================= */
 async function loadPresets(){
   try{
-    const r = await window.storage.get('user-presets');
+    const r = await localDB.get('user-presets');
     return r ? JSON.parse(r.value) : DEFAULT_PRESETS;
   }catch(e){
     return DEFAULT_PRESETS;
@@ -1075,7 +1157,7 @@ async function loadPresets(){
 }
 
 async function savePresets(list){
-  await window.storage.set('user-presets', JSON.stringify(list));
+  await localDB.set('user-presets', JSON.stringify(list));
 }
 
 async function buildPresetRow(){
@@ -1140,133 +1222,175 @@ async function runAI(){
   document.getElementById('result-content').style.display = 'block';
 }
 
-/* ================= Audio capture (for playback) ================= */
-function startAudioCapture(){
-  if(!navigator.mediaDevices?.getUserMedia){
-    return Promise.resolve(); // silently degrade — playback just won't be available
+/* ================= Recorded Meetings list ================= */
+let expandedMeetingId = null;
+
+function fmtDuration(totalSeconds){
+  const m = String(Math.floor(totalSeconds/60)).padStart(2,'0');
+  const s = String(totalSeconds%60).padStart(2,'0');
+  return m+':'+s;
+}
+
+function escapeHTML(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function loadMeetings(){
+  const list = document.getElementById('meetings-list');
+  list.innerHTML = '<div class="empty-state">লোড হচ্ছে…</div>';
+  let recordings;
+  try{
+    recordings = await dbGetAllRecordings();
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">এখনো কোনো meeting recording নেই।<br>🎙️ Home থেকে প্রথম মিটিং রেকর্ড করুন।</div>';
+    return;
   }
-  return navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false
-    }
-  }).then(stream=>{
-    mediaStream = stream;
-    audioChunks = [];
-    try{
-      mediaRecorder = new MediaRecorder(stream);
-    }catch(e){
-      stream.getTracks().forEach(t=>t.stop());
-      return;
-    }
-    mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = ()=>{
-      if(audioChunks.length){
-        allAudioBlobs.push(new Blob(audioChunks, {type:'audio/webm'}));
-        updateAudioPlayer();
-        if(!isRecording){
-          // Recording is fully finished (not just a pause) — send to the
-          // real backend for a much more accurate transcript than the
-          // browser's built-in recognition.
-          sendAudioForRealTranscription();
-        }
-      }
-      stream.getTracks().forEach(t=>t.stop());
-    };
-    // timeslice (250ms) forces regular dataavailable events instead of one
-    // big chunk only at stop — helps on some Android WebViews where a
-    // single huge chunk can end up empty/corrupt.
-    mediaRecorder.start(250);
-  }).catch(()=>{
-    // mic permission for audio capture denied/unavailable — transcript still works
+  if(!recordings.length){
+    list.innerHTML = '<div class="empty-state">এখনো কোনো meeting recording নেই।<br>🎙️ Home থেকে প্রথম মিটিং রেকর্ড করুন।</div>';
+    return;
+  }
+  recordings.sort((a,b)=> new Date(b.dateISO) - new Date(a.dateISO));
+  list.innerHTML = '';
+  recordings.forEach(rec=>{
+    list.appendChild(renderMeetingItem(rec));
   });
 }
 
-function updateAudioPlayer(){
-  if(!allAudioBlobs.length) return;
-  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
-  if(currentAudioURL) URL.revokeObjectURL(currentAudioURL);
-  currentAudioURL = URL.createObjectURL(combined);
-  const audioEl = document.getElementById('audio-player');
-  audioEl.src = currentAudioURL;
-  audioEl.muted = false;
-  audioEl.volume = 1.0;
-  document.getElementById('audio-player-wrap').style.display = 'block';
+function renderMeetingItem(rec){
+  const d = new Date(rec.dateISO);
+  const dateLabel = d.toLocaleDateString() + ' · ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const wrap = document.createElement('div');
+  wrap.className = 'history-item';
+  wrap.style.cursor = 'default';
+
+  const isExpanded = expandedMeetingId === rec.id;
+  const audioURL = URL.createObjectURL(rec.audioBlob);
+
+  let transcriptBlockHTML = '';
+  if(rec.transcribing){
+    transcriptBlockHTML = `<div class="h-preview">⏳ Convert হচ্ছে — Google Speech-to-Text-এ পাঠানো হয়েছে…</div>`;
+  } else if(rec.transcript){
+    transcriptBlockHTML = `
+      <div class="section-label" style="margin-top:10px;">Transcript</div>
+      <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(rec.transcript)}</div>
+      <div class="result-actions">
+        <button onclick="copyMeetingTranscript('${rec.id}')">📋 Copy</button>
+        <button onclick="downloadMeetingTranscript('${rec.id}')">⬇️ Text</button>
+        <button onclick="sendMeetingToAI('${rec.id}')">🤖 Send to AI</button>
+      </div>`;
+  } else {
+    transcriptBlockHTML = `<button class="btn-primary" style="margin-top:8px;" onclick="convertMeetingToText('${rec.id}')">📝 Convert to Text</button>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="h-top">
+      <span class="h-mode">Meeting #${rec.number}</span>
+      <span class="h-date">${dateLabel} · ${fmtDuration(rec.durationSeconds||0)}</span>
+    </div>
+    <div class="result-actions" style="margin-top:8px;">
+      <button onclick="toggleMeetingExpand('${rec.id}')">${isExpanded ? '🔼 বন্ধ করুন' : '▶️ শুনুন / বিস্তারিত'}</button>
+      <button onclick="downloadMeetingAudio('${rec.id}')">⬇️ Audio</button>
+      <button onclick="deleteMeeting('${rec.id}')">🗑️ Delete</button>
+    </div>
+    ${isExpanded ? `
+      <audio controls style="width:100%; border-radius:12px; margin-top:10px;" src="${audioURL}"></audio>
+      ${transcriptBlockHTML}
+    ` : ''}
+  `;
+  return wrap;
 }
 
-async function sendAudioForRealTranscription(){
-  if(!allAudioBlobs.length) return;
-  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
-  document.getElementById('mic-status').textContent = 'আরও নির্ভুল করতে server-এ পাঠানো হচ্ছে…';
+function toggleMeetingExpand(id){
+  expandedMeetingId = (expandedMeetingId === id) ? null : id;
+  loadMeetings();
+}
+
+async function convertMeetingToText(id){
+  await dbUpdateRecording(id, { transcribing: true });
+  expandedMeetingId = id;
+  await loadMeetings();
+
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec){ return; }
+
   try{
     const formData = new FormData();
-    formData.append('audio', combined, 'recording.webm');
+    formData.append('audio', rec.audioBlob, 'meeting.webm');
     formData.append('encoding', 'WEBM_OPUS');
-    formData.append('languageCode', selectedLang);
-    formData.append('alternativeLanguageCode', selectedLang === 'bn-BD' ? 'en-US' : 'bn-BD');
+    formData.append('languageCode', rec.lang || 'bn-BD');
+    formData.append('alternativeLanguageCode', (rec.lang||'bn-BD') === 'bn-BD' ? 'en-US' : 'bn-BD');
+    // Ask the backend for speaker labels where the underlying Google Cloud
+    // STT call supports it — harmless extra field if the backend doesn't
+    // use it yet.
+    formData.append('enableSpeakerDiarization', 'true');
     const res = await fetch(`${BACKEND_URL}/api/transcribe`, { method:'POST', body: formData });
     if(!res.ok) throw new Error('backend error ' + res.status);
     const data = await res.json();
-    if(data.transcript && data.transcript.trim()){
-      transcriptText = data.transcript.trim();
-      renderTranscript(transcriptText);
-      document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে (Google STT দিয়ে যাচাই করা)';
-    } else {
-      document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে';
-    }
+    const text = (data.transcript || '').trim();
+    await dbUpdateRecording(id, {
+      transcribing: false,
+      transcript: text || '(কোনো কথা শনাক্ত করা যায়নি — audio আবার চেষ্টা করুন অথবা স্পষ্ট করে বলা আছে কিনা দেখুন।)'
+    });
   }catch(err){
-    // Backend might be asleep (free-tier cold start) or briefly
-    // unreachable — silently keep the browser's live transcript instead
-    // of showing a scary error, since that's still usable.
-    document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে';
+    // Most likely cause right now: Google Cloud billing isn't enabled yet
+    // on the backend, so the STT call fails.
+    await dbUpdateRecording(id, {
+      transcribing: false,
+      transcript: null
+    });
+    alert('Text-এ convert করা যায়নি। এর প্রধান কারণ হতে পারে Google Cloud billing এখনো সম্পূর্ণ enable না থাকা backend-এ। পরে আবার চেষ্টা করুন।');
   }
+  await loadMeetings();
 }
 
-function clearTranscript(){
-  if(transcriptText.trim() && !confirm('বর্তমান transcript মুছে নতুন করে শুরু করবেন?')) return;
-  transcriptText = '';
-  timerSeconds = 0;
-  document.getElementById('mic-timer').textContent = '00:00';
-  renderTranscript('');
-  allAudioBlobs = [];
-  if(currentAudioURL){ URL.revokeObjectURL(currentAudioURL); currentAudioURL = null; }
-  document.getElementById('audio-player-wrap').style.display = 'none';
-  document.getElementById('audio-player').removeAttribute('src');
+async function deleteMeeting(id){
+  if(!confirm('এই meeting recording মুছে ফেলবেন? এটা আর ফেরত আনা যাবে না।')) return;
+  await dbDeleteRecording(id);
+  if(expandedMeetingId === id) expandedMeetingId = null;
+  await loadMeetings();
 }
 
-function downloadAudio(){
-  if(!allAudioBlobs.length){ alert('এখনো কোনো audio recording নেই।'); return; }
-  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
-  const url = URL.createObjectURL(combined);
+async function downloadMeetingAudio(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec) return;
+  const url = URL.createObjectURL(rec.audioBlob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'voicewrite-recording-' + Date.now() + '.webm';
+  a.download = `voicewrite-meeting-${rec.number}.webm`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function downloadTranscriptText(){
-  if(!transcriptText.trim()){ alert('এখনো কোনো transcript নেই।'); return; }
-  const blob = new Blob([transcriptText], {type:'text/plain;charset=utf-8'});
+async function copyMeetingTranscript(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.transcript) return;
+  navigator.clipboard?.writeText(rec.transcript).catch(()=>{});
+}
+
+async function downloadMeetingTranscript(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.transcript) return;
+  const blob = new Blob([rec.transcript], {type:'text/plain;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'voicewrite-transcript-' + Date.now() + '.txt';
+  a.download = `voicewrite-meeting-${rec.number}-transcript.txt`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function copyTranscript(){
-  navigator.clipboard?.writeText(transcriptText).catch(()=>{});
-  const box = document.getElementById('transcript-box');
-  const range = document.createRange();
-  range.selectNodeContents(box);
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-  document.execCommand('copy');
-  sel.removeAllRanges();
+async function sendMeetingToAI(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.transcript) return;
+  transcriptText = rec.transcript;
+  goto('view-mode');
 }
 
 function copyResult(){
@@ -1321,7 +1445,7 @@ async function saveResult(){
   };
   const key = 'history:' + Date.now();
   try{
-    await window.storage.set(key, JSON.stringify(entry));
+    await localDB.set(key, JSON.stringify(entry));
     alert('সংরক্ষণ করা হয়েছে ✓');
     goto('view-history');
   }catch(e){
@@ -1334,7 +1458,7 @@ async function loadHistory(){
   const list = document.getElementById('history-list');
   list.innerHTML = '<div class="empty-state">লোড হচ্ছে…</div>';
   try{
-    const res = await window.storage.list('history:');
+    const res = await localDB.list('history:');
     const keys = (res && res.keys) || [];
     if(keys.length===0){
       list.innerHTML = '<div class="empty-state">এখনো কোনো সংরক্ষিত লেখা নেই।<br>Recording করে AI দিয়ে প্রথম লেখাটি তৈরি করুন।</div>';
@@ -1343,7 +1467,7 @@ async function loadHistory(){
     const entries = [];
     for(const k of keys){
       try{
-        const r = await window.storage.get(k);
+        const r = await localDB.get(k);
         if(r) entries.push(JSON.parse(r.value));
       }catch(e){}
     }
