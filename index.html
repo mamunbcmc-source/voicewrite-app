@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>VoiceWrite AI</title>
+
+<!-- ===== PWA: install-on-phone support ===== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F2A44">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VoiceWrite">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3EFE6;
+    --paper:#FFFFFF;
+    --ink:#1F2A44;
+    --ink-soft:#5A6478;
+    --line:#E3DCC9;
+    --accent:#C98A2C;
+    --accent-soft:#F3E3BE;
+    --accent-deep:#9C6A1E;
+    --record:#A6402F;
+    --record-soft:#F3D9D2;
+    --admin:#2F5233;
+    --admin-soft:#DCE7DC;
+    --radius:22px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 12% 18%, rgba(201,138,44,0.10), transparent 40%),
+      radial-gradient(circle at 88% 82%, rgba(47,82,51,0.08), transparent 40%),
+      var(--bg);
+    font-family:'Hind Siliguri', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:36px 20px;
+  }
+  .stage{
+    display:flex;
+    gap:56px;
+    align-items:center;
+    max-width:1080px;
+    width:100%;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  /* ---------- Hero / intro side ---------- */
+  .intro{
+    flex:1 1 340px;
+    max-width:400px;
+    padding:12px;
+  }
+  .intro .eyebrow{
+    font-size:14px;
+    color:var(--accent-deep);
+    letter-spacing:0.02em;
+    margin-bottom:10px;
+    font-weight:600;
+  }
+  .intro h1{
+    font-family:'Baloo Da 2', 'Hind Siliguri', sans-serif;
+    font-size:44px;
+    line-height:1.15;
+    margin:0 0 18px;
+    font-weight:700;
+    color:var(--ink);
+  }
+  .intro h1 .voice{color:var(--record);}
+  .intro h1 .arrow{color:var(--ink-soft); font-weight:500; padding:0 6px;}
+  .intro h1 .write{color:var(--accent-deep);}
+  .intro p{
+    font-size:16.5px;
+    line-height:1.65;
+    color:var(--ink-soft);
+    max-width:34ch;
+    margin:0 0 26px;
+  }
+  .waveform{
+    display:flex;
+    align-items:flex-end;
+    gap:5px;
+    height:70px;
+    margin:0 0 30px;
+  }
+  .waveform span{
+    display:block;
+    width:6px;
+    border-radius:4px;
+    background:linear-gradient(180deg, var(--accent), var(--record));
+    opacity:0.75;
+    animation:wave 1.8s ease-in-out infinite;
+  }
+  @keyframes wave{
+    0%,100%{transform:scaleY(0.4);}
+    50%{transform:scaleY(1);}
+  }
+  .creds{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:16px 18px;
+    font-size:14px;
+    color:var(--ink-soft);
+    line-height:1.8;
+  }
+  .creds b{color:var(--ink);}
+  .creds .row{display:flex; justify-content:space-between; gap:12px;}
+
+  /* ---------- Phone shell ---------- */
+  .phone{
+    width:380px;
+    height:800px;
+    background:#0F1420;
+    border-radius:46px;
+    padding:14px;
+    box-shadow:0 30px 60px -20px rgba(31,42,68,0.35), 0 0 0 1px rgba(31,42,68,0.06);
+    flex-shrink:0;
+  }
+  .screen{
+    width:100%;
+    height:100%;
+    background:var(--bg);
+    border-radius:32px;
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  .notch{
+    position:absolute;
+    top:0; left:50%; transform:translateX(-50%);
+    width:120px; height:22px;
+    background:#0F1420;
+    border-radius:0 0 16px 16px;
+    z-index:50;
+  }
+  .view{
+    display:none;
+    flex-direction:column;
+    height:100%;
+    width:100%;
+    animation:fadein .25s ease;
+  }
+  .view.active{display:flex;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  .topbar{
+    padding:40px 22px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .topbar .brand{
+    font-family:'Baloo Da 2', sans-serif;
+    font-weight:700;
+    font-size:19px;
+  }
+  .topbar .role-badge{
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:20px;
+    background:var(--accent-soft);
+    color:var(--accent-deep);
+    font-weight:600;
+  }
+  .role-badge.admin{background:var(--admin-soft); color:var(--admin);}
+
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:0 22px 22px;
+  }
+  .body-scroll::-webkit-scrollbar{width:0;}
+
+  /* ---------- Login ---------- */
+  .login-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:0 26px;
+  }
+  .login-title{
+    font-family:'Baloo Da 2', sans-serif;
+    font-size:26px;
+    font-weight:700;
+    margin-bottom:6px;
+  }
+  .login-sub{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin-bottom:26px;
+  }
+  .tabs{
+    display:flex;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:4px;
+    margin-bottom:20px;
+  }
+  .tabs button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:10px 0;
+    border-radius:10px;
+    font-family:inherit;
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .tabs button.on{background:var(--ink); color:#fff;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:600;}
+  .field input{
+    width:100%;
+    padding:13px 14px;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    font-family:inherit;
+    font-size:15px;
+    color:var(--ink);
+  }
+  .field input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .btn-primary{
+    width:100%;
+    padding:14px;
+    border-radius:14px;
+    border:none;
+    background:var(--ink);
+    color:#fff;
+    font-family:inherit;
+    font-size:15.5px;
+    font-weight:600;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .btn-primary.admin-mode{background:var(--admin);}
+  .btn-primary:active{transform:scale(0.98);}
+  .login-hint{
+    margin-top:16px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    background:var(--paper);
+    border:1px dashed var(--line);
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .login-error{color:var(--record); font-size:13px; margin-top:8px; display:none; font-weight:600;}
+
+  /* ---------- Home / recording ---------- */
+  .lang-toggle{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+  }
+  .lang-toggle button{
+    flex:1;
+    padding:8px 0;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .lang-toggle button.on{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .lang-note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin:-4px 0 14px;
+  }
+  .live-tag{
+    display:inline-block;
+    background:var(--record-soft);
+    color:var(--record);
+    font-size:12px;
+    font-weight:700;
+    padding:4px 12px;
+    border-radius:20px;
+    margin-bottom:14px;
+  }
+  .preset-row{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:6px;
+    margin-bottom:4px;
+  }
+  .preset-row::-webkit-scrollbar{height:0;}
+  .preset-chip{
+    flex-shrink:0;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:8px 14px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .preset-chip.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent-deep);}
+  .prompt-helper{
+    font-size:12px;
+    color:var(--accent-deep);
+    background:var(--accent-soft);
+    border-radius:10px;
+    padding:8px 12px;
+    margin-bottom:10px;
+    line-height:1.6;
+  }
+  .prompt-input{
+    width:100%;
+    min-height:130px;
+    border-radius:var(--radius);
+    border:2px solid var(--line);
+    background:var(--paper);
+    padding:16px 18px;
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:14px;
+    line-height:1.7;
+    color:var(--ink);
+    resize:vertical;
+    margin-bottom:12px;
+  }
+  .prompt-input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .export-note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin-top:10px;
+    padding:10px 12px;
+    background:var(--bg);
+    border-radius:10px;
+  }
+  .mic-panel{position:relative;}
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:26px 20px;
+    text-align:center;
+    margin-bottom:16px;
+  }
+  .mic-btn{
+    width:88px; height:88px;
+    border-radius:50%;
+    border:none;
+    background:var(--record);
+    color:#fff;
+    font-size:30px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin:0 auto 14px;
+    box-shadow:0 10px 24px -8px rgba(166,64,47,0.55);
+    transition:transform .15s;
+  }
+  .mic-btn.recording{animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(166,64,47,0.35);}
+    70%{box-shadow:0 0 0 18px rgba(166,64,47,0);}
+    100%{box-shadow:0 0 0 0 rgba(166,64,47,0);}
+  }
+  .mic-timer{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; margin-bottom:4px;}
+  .mic-status{font-size:13px; color:var(--ink-soft);}
+  .mic-controls{display:flex; gap:10px; justify-content:center; margin-top:16px;}
+  .mic-controls button{
+    padding:9px 16px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--bg);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .mic-controls button:disabled{opacity:0.4; cursor:not-allowed;}
+
+  .transcript-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    min-height:140px;
+    font-size:14.5px;
+    line-height:1.7;
+    color:var(--ink);
+    margin-bottom:16px;
+    white-space:pre-wrap;
+    word-break:break-word;
+    overflow-wrap:break-word;
+    overflow-x:hidden;
+  }
+  .transcript-box.empty{color:var(--ink-soft); font-style:italic;}
+  .section-label{font-size:12.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em; margin:0 0 8px;}
+
+  /* ---------- AI mode ---------- */
+  .mode-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .mode-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:13px 12px;
+    cursor:pointer;
+    text-align:left;
+  }
+  .mode-card .m-name{font-size:14px; font-weight:700; margin-bottom:3px;}
+  .mode-card .m-desc{font-size:11.5px; color:var(--ink-soft); line-height:1.4;}
+  .mode-card.on{border-color:var(--accent); background:var(--accent-soft);}
+
+  .result-box textarea{
+    width:100%;
+    min-height:220px;
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    background:var(--paper);
+    padding:16px 18px;
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:14.5px;
+    line-height:1.75;
+    color:var(--ink);
+    resize:vertical;
+  }
+  .result-actions{display:flex; gap:8px; margin-top:12px;}
+  .result-actions button{
+    flex:1;
+    padding:11px 0;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .result-actions button.save{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .loading-wrap{display:flex; flex-direction:column; align-items:center; padding:50px 10px; color:var(--ink-soft); gap:14px;}
+  .spinner{width:34px; height:34px; border-radius:50%; border:3px solid var(--line); border-top-color:var(--accent); animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---------- History ---------- */
+  .history-item{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px 16px;
+    margin-bottom:10px;
+    cursor:pointer;
+  }
+  .history-item .h-top{display:flex; justify-content:space-between; margin-bottom:6px;}
+  .history-item .h-mode{font-size:11.5px; font-weight:700; color:var(--accent-deep); background:var(--accent-soft); padding:2px 9px; border-radius:20px;}
+  .history-item .h-date{font-size:11px; color:var(--ink-soft);}
+  .history-item .h-preview{font-size:13.5px; color:var(--ink-soft); line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+  .empty-state{text-align:center; padding:60px 20px; color:var(--ink-soft); font-size:14px; line-height:1.7;}
+
+  /* ---------- Admin ---------- */
+  .stat-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;}
+  .stat-card{background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:14px 16px;}
+  .stat-card .s-num{font-size:24px; font-weight:700; font-family:'Baloo Da 2', sans-serif;}
+  .stat-card .s-label{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+  .admin-user{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:12px 14px; margin-bottom:8px;
+  }
+  .admin-user .u-name{font-size:14px; font-weight:600;}
+  .admin-user .u-meta{font-size:11.5px; color:var(--ink-soft);}
+  .toggle-btn{
+    padding:6px 12px; border-radius:20px; border:none; font-size:11.5px; font-weight:700; cursor:pointer;
+  }
+  .toggle-btn.active{background:var(--admin-soft); color:var(--admin);}
+  .toggle-btn.inactive{background:var(--record-soft); color:var(--record);}
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav{
+    display:flex;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+    padding:10px 10px 16px;
+  }
+  .bottom-nav button{
+    flex:1;
+    background:none;
+    border:none;
+    font-family:inherit;
+    font-size:11px;
+    font-weight:600;
+    color:var(--ink-soft);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    cursor:pointer;
+    padding:6px 0;
+  }
+  .bottom-nav button .ic{font-size:19px;}
+  .bottom-nav button.on{color:var(--ink);}
+  .bottom-nav button.on.admin-tab{color:var(--admin);}
+
+  .note-banner{
+    background:var(--admin-soft);
+    color:var(--admin);
+    font-size:12px;
+    border-radius:10px;
+    padding:9px 12px;
+    margin-bottom:14px;
+    line-height:1.5;
+  }
+  .logout-link{
+    text-align:center;
+    color:var(--record);
+    font-size:13.5px;
+    font-weight:600;
+    padding:14px 0 6px;
+    cursor:pointer;
+  }
+
+  /* ---------- Mobile: fill the real screen, no mockup frame ---------- */
+  @media (max-width: 480px){
+    body{ padding:0; align-items:stretch; }
+    .stage{ gap:0; }
+    .intro{ display:none; }
+    .phone{
+      width:100%;
+      height:100vh;
+      height:100dvh;
+      border-radius:0;
+      padding:0;
+      box-shadow:none;
+      flex-shrink:1;
+    }
+    .screen{ border-radius:0; }
+    .notch{ display:none; }
+    .topbar{ padding-top:18px; }
+  }
+</style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="stage">
+
+  <div class="intro">
+    <div class="eyebrow">DESKTOP TEST BUILD — PHASE 1–3</div>
+    <h1><span class="voice">কথা</span><span class="arrow">→</span><span class="write">লেখা</span><br>VoiceWrite AI</h1>
+    <div class="waveform">
+      <span style="height:30%; animation-delay:0s"></span>
+      <span style="height:70%; animation-delay:0.1s"></span>
+      <span style="height:45%; animation-delay:0.2s"></span>
+      <span style="height:90%; animation-delay:0.3s"></span>
+      <span style="height:55%; animation-delay:0.4s"></span>
+      <span style="height:75%; animation-delay:0.5s"></span>
+      <span style="height:35%; animation-delay:0.6s"></span>
+      <span style="height:60%; animation-delay:0.7s"></span>
+    </div>
+    <p>মুখে বলা কথা সরাসরি Live Transcript হয়ে ওঠে, তারপর AI সেটাকে professional লেখায় রূপান্তর করে — Email, Meeting Notes, Summary বা To-Do, যেভাবে আপনার দরকার।</p>
+    <div class="creds">
+      <div class="row"><span>👤 Demo Login</span><b>demo / 123456</b></div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+
+      <!-- LOGIN VIEW -->
+      <div class="view active" id="view-login">
+        <div class="login-wrap">
+          <div class="login-title">স্বাগতম 👋</div>
+          <div class="login-sub">আপনার account দিয়ে লগইন করুন</div>
+          <div class="field">
+            <label>User ID</label>
+            <input id="login-id" type="text" name="vw-uid-field" placeholder="demo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="login-pass" type="password" name="vw-pwd-field" placeholder="••••••••" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <button class="btn-primary" id="login-btn" onclick="doLogin()">লগইন করুন</button>
+          <div class="login-error" id="login-error">ভুল User ID অথবা Password।</div>
+          <div class="login-hint">এটি শুধুমাত্র development/testing credential। Settings থেকে Password পরিবর্তন করা যাবে।</div>
+        </div>
+      </div>
+
+      <!-- USER HOME / RECORDING VIEW -->
+      <div class="view" id="view-home">
+        <div class="topbar">
+          <div class="brand" id="home-brand">🎙️ Home</div>
+        </div>
+        <div class="body-scroll">
+          <div class="section-label">Speech Language</div>
+          <div class="lang-toggle">
+            <button id="lang-bn" class="on" onclick="setLang('bn-BD')">বাংলা</button>
+            <button id="lang-en" onclick="setLang('en-US')">English</button>
+          </div>
+          <div class="lang-note">আপনার meeting বাংলা + English mixed হলেও সমস্যা নেই — যে ভাষায় বলা হয়েছে, সেই ভাষাতেই transcript থাকবে।</div>
+
+          <div class="mic-panel" id="mic-panel">
+            <div class="live-tag" id="live-tag" style="display:none;">🔴 LIVE MEETING</div>
+            <button class="mic-btn" id="mic-btn" onclick="toggleRecording()">🎤</button>
+            <div class="mic-timer" id="mic-timer">00:00</div>
+            <div class="mic-status" id="mic-status">রেকর্ড করতে মাইক্রোফোনে চাপ দিন</div>
+            <div class="mic-controls">
+              <button id="btn-pause" onclick="pauseRecording()" disabled>⏸ Pause</button>
+              <button id="btn-resume" onclick="resumeRecording()" disabled>▶ Resume</button>
+              <button id="btn-stop" onclick="stopRecording()" disabled>⏹ Stop</button>
+            </div>
+          </div>
+
+          <div class="section-label">Live Transcript <span style="font-weight:400; text-transform:none; letter-spacing:0;">(এখানে সরাসরি টাইপও করা যাবে)</span></div>
+          <div class="transcript-box empty" id="transcript-box" contenteditable="true" oninput="onTranscriptEdit()">এখানে আপনার কথা লেখা আকারে দেখা যাবে, অথবা সরাসরি টাইপ করুন…</div>
+
+          <div id="audio-player-wrap" style="display:none; margin:12px 0;">
+            <div class="section-label">🔊 আপনার Recording শুনুন</div>
+            <audio id="audio-player" controls style="width:100%; border-radius:12px; margin-bottom:8px;"></audio>
+            <button onclick="downloadAudio()" style="width:100%; padding:10px 0; border-radius:12px; border:1px solid var(--line); background:var(--paper); font-family:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer;">⬇️ Audio Download করুন</button>
+          </div>
+
+          <div class="result-actions" style="margin-bottom:14px;">
+            <button onclick="copyTranscript()">📋 Copy Text</button>
+            <button onclick="downloadTranscriptText()">⬇️ Text Download</button>
+            <button onclick="clearTranscript()">🗑️ নতুন Recording (মুছে ফেলুন)</button>
+          </div>
+          <button class="btn-primary" id="to-ai-btn" style="opacity:0.4; pointer-events:none;" onclick="goto('view-mode')">🤖 Send to AI →</button>
+        </div>
+        <div class="bottom-nav">
+          <button class="on" onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+        </div>
+      </div>
+
+      <!-- CUSTOM PROMPT VIEW -->
+      <div class="view" id="view-mode">
+        <div class="topbar">
+          <div class="brand">✍️ আপনার Prompt</div>
+        </div>
+        <div class="body-scroll">
+          <div class="section-label">Saved Prompts <span style="font-weight:400; text-transform:none; letter-spacing:0;">(tap করলে বসে যাবে)</span></div>
+          <div class="preset-row" id="preset-row"></div>
+
+          <div class="section-label" style="margin-top:16px;">✍️ আপনার নিজের Instruction লিখুন</div>
+          <div class="prompt-helper">👇 নিচের সাদা বক্সে ট্যাপ করে সরাসরি লিখুন (ধূসর লেখাটা শুধু উদাহরণ, নিজে থেকে সরে যাবে)</div>
+          <textarea class="prompt-input" id="prompt-input" placeholder="এখানে টাইপ করুন… (যেমন: এই transcript থেকে একটি professional summary তৈরি করো)"></textarea>
+          <div class="result-actions" style="margin-bottom:16px;">
+            <button onclick="saveCurrentPreset()">⭐ এই Prompt Save করুন</button>
+          </div>
+
+          <button class="btn-primary" onclick="runAI()">🚀 Generate</button>
+          <div class="logout-link" onclick="goto('view-home')">← ফিরে যান</div>
+        </div>
+      </div>
+
+      <!-- AI RESULT / LOADING VIEW -->
+      <div class="view" id="view-result">
+        <div class="topbar">
+          <div class="brand">✨ Result</div>
+        </div>
+        <div class="body-scroll" id="result-scroll">
+          <div class="loading-wrap" id="ai-loading">
+            <div class="spinner"></div>
+            <div>AI আপনার prompt অনুযায়ী লিখছে…</div>
+          </div>
+          <div class="result-box" id="result-content" style="display:none;">
+            <div class="section-label">Editable Result</div>
+            <textarea id="result-text"></textarea>
+            <div class="result-actions">
+              <button onclick="copyResult()">📋 Copy</button>
+              <button onclick="shareResult()">📤 Share</button>
+              <button onclick="downloadResult()">⬇️ .txt</button>
+              <button onclick="downloadExcel()">📊 Excel</button>
+              <button class="save" onclick="saveResult()">💾 Save</button>
+            </div>
+            <div class="export-note">Word/PDF সহ পূর্ণ export final Android app-এ (Phase 6) থাকবে — এখানে Copy/Share/Download/Excel দিয়ে টেস্ট করুন।</div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+        </div>
+      </div>
+
+      <!-- HISTORY VIEW -->
+      <div class="view" id="view-history">
+        <div class="topbar">
+          <div class="brand">📂 History</div>
+        </div>
+        <div class="body-scroll" id="history-list"></div>
+        <div class="bottom-nav" id="history-nav">
+          <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+        </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div class="view" id="view-settings">
+        <div class="topbar">
+          <div class="brand">⚙️ Settings</div>
+        </div>
+        <div class="body-scroll">
+          <div class="section-label">Account</div>
+          <div class="history-item" style="cursor:default;">
+            <div class="h-top"><span class="h-mode" id="settings-username">demo</span></div>
+            <div class="h-preview">এটি এই ফোনের একমাত্র account।</div>
+          </div>
+
+          <button class="btn-primary" id="install-btn" style="display:none; margin-top:14px;" onclick="installApp()">📲 Home Screen-এ Install করুন</button>
+          <div class="login-hint" id="installed-hint" style="display:none; margin-top:14px;">✓ App হিসেবে ইতিমধ্যে Install করা আছে — Letterly-র মতোই home screen থেকে সরাসরি খুলতে পারবেন।</div>
+
+          <div class="section-label" style="margin-top:18px;">🔒 Password পরিবর্তন করুন</div>
+          <div class="field">
+            <label>বর্তমান Password</label>
+            <input id="pw-current" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>নতুন Password</label>
+            <input id="pw-new" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>নতুন Password আবার লিখুন</label>
+            <input id="pw-confirm" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="login-error" id="pw-error"></div>
+          <div class="login-error" id="pw-success" style="color:var(--admin);"></div>
+          <button class="btn-primary" onclick="changePassword()">Password Update করুন</button>
+
+          <div class="section-label" style="margin-top:18px;">About</div>
+          <div class="history-item" style="cursor:default;">
+            <div class="h-preview">VoiceWrite AI · Desktop test prototype। Backend live আছে, mobile APK build এখনো বাকি (Phase 6)।</div>
+          </div>
+          <div class="logout-link" onclick="doLogout()">🚪 Logout</div>
+        </div>
+        <div class="bottom-nav" id="settings-nav">
+          <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button class="on" onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= State ================= */
+let loginRole = 'user';
+let currentUser = null; // {id, role}
+let selectedLang = 'bn-BD';
+let transcriptText = '';
+let selectedPresetId = null;
+let recognition = null;
+let isRecording = false;
+let isPaused = false;
+let timerSeconds = 0;
+let timerInterval = null;
+let mediaStream = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let allAudioBlobs = [];
+let currentAudioURL = null;
+
+// Real backend (Phase 2/3) — Google Cloud STT + AI writing. Deployed and
+// live; used here so the browser prototype gets accurate transcription
+// instead of relying only on the browser's built-in speech recognition.
+const BACKEND_URL = 'https://voicewrite-ai-backend-v2.onrender.com';
+
+const DEFAULT_PRESETS = [
+  {id:'d1', name:'Morning Meeting Summary', prompt:'এই meeting transcript থেকে একটি professional Morning Meeting Summary তৈরি করো। গুরুত্বপূর্ণ discussion, decision, problem, action item, responsible person এবং deadline আলাদা করে দাও। ভাষা professional হবে।'},
+  {id:'d2', name:'IT & MIS Meeting', prompt:'এই transcript থেকে IT ও MIS টিমের জন্য একটি meeting summary তৈরি করো — technical issue, system status, pending task এবং next step আলাদাভাবে উল্লেখ করে।'},
+  {id:'d3', name:'Project SCORE', prompt:'এই transcript থেকে Project SCORE-এর progress summary তৈরি করো — target vs achievement, delay/problem, এবং next action item স্পষ্টভাবে দেখাও।'},
+  {id:'d4', name:'Management Meeting', prompt:'এই transcript থেকে একটি management-level meeting summary তৈরি করো — মূল আলোচনা, সিদ্ধান্ত এবং management-এর জন্য গুরুত্বপূর্ণ পয়েন্টগুলো তুলে ধরো।'},
+  {id:'d5', name:'Problem & Action Plan', prompt:'এই transcript থেকে সমস্যাগুলো চিহ্নিত করো এবং প্রতিটির জন্য একটি স্পষ্ট action plan (দায়িত্বপ্রাপ্ত ব্যক্তি ও deadline সহ) তৈরি করো।'},
+  {id:'d6', name:'Professional MOM', prompt:'এই transcript থেকে একটি formal Minutes of Meeting (MOM) তৈরি করো — attendees, agenda, discussion, decisions এবং action items আলাদা section-এ।'},
+];
+
+/* ================= Login (single user, no admin role) ================= */
+let currentPassword = '123456'; // demo default — changeable from Settings
+const DEMO_USER_ID = 'demo';
+
+function prefillLogin(){
+  document.getElementById('login-id').value = DEMO_USER_ID;
+  document.getElementById('login-pass').value = currentPassword;
+  document.getElementById('login-error').style.display = 'none';
+}
+
+function doLogin(){
+  const id = document.getElementById('login-id').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  if(id !== DEMO_USER_ID || pass !== currentPassword){
+    document.getElementById('login-error').style.display = 'block';
+    return;
+  }
+  currentUser = {id};
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('settings-username').textContent = id;
+  buildPresetRow();
+  goto('view-home');
+  loadHistory();
+}
+
+function doLogout(){
+  currentUser = null;
+  goto('view-login');
+  prefillLogin();
+}
+
+function changePassword(){
+  const cur = document.getElementById('pw-current').value;
+  const next = document.getElementById('pw-new').value;
+  const confirm = document.getElementById('pw-confirm').value;
+  const errEl = document.getElementById('pw-error');
+  const okEl = document.getElementById('pw-success');
+  errEl.textContent = ''; errEl.style.display = 'none';
+  okEl.textContent = ''; okEl.style.display = 'none';
+
+  if(cur !== currentPassword){
+    errEl.textContent = 'বর্তমান Password ভুল।';
+    errEl.style.display = 'block';
+    return;
+  }
+  if(!next || next.length < 4){
+    errEl.textContent = 'নতুন Password কমপক্ষে ৪ অক্ষরের হতে হবে।';
+    errEl.style.display = 'block';
+    return;
+  }
+  if(next !== confirm){
+    errEl.textContent = 'নতুন Password দুটো মিলছে না।';
+    errEl.style.display = 'block';
+    return;
+  }
+  currentPassword = next;
+  document.getElementById('pw-current').value = '';
+  document.getElementById('pw-new').value = '';
+  document.getElementById('pw-confirm').value = '';
+  okEl.textContent = 'Password সফলভাবে পরিবর্তন হয়েছে ✓';
+  okEl.style.display = 'block';
+}
+
+
+
+/* ================= Navigation ================= */
+function goto(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  // sync bottom nav highlight for shared nav bars (home/history/settings appear in several views)
+  document.querySelectorAll('.bottom-nav').forEach(nav=>{
+    nav.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  });
+  if(id==='view-history'){
+    document.querySelectorAll('#history-nav button, .bottom-nav button').forEach(()=>{});
+  }
+  if(id==='view-history') loadHistory();
+}
+
+/* ================= Language ================= */
+function setLang(lang){
+  selectedLang = lang;
+  document.getElementById('lang-bn').classList.toggle('on', lang==='bn-BD');
+  document.getElementById('lang-en').classList.toggle('on', lang==='en-US');
+  if(recognition) recognition.lang = lang;
+}
+
+/* ================= Voice Recording (Web Speech API) ================= */
+function getRecognition(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return null;
+  const r = new SR();
+  r.continuous = true;
+  r.interimResults = true;
+  r.lang = selectedLang;
+  r.onresult = (e)=>{
+    let finalChunk = '';
+    let interim = '';
+    for(let i=e.resultIndex; i<e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) finalChunk += t + ' ';
+      else interim += t;
+    }
+    if(finalChunk) transcriptText += finalChunk;
+    renderTranscript(transcriptText + interim);
+  };
+  r.onerror = (e)=>{
+    // no-speech / network / aborted are common transient hiccups on mobile —
+    // don't show a scary error for these, just let onend's restart handle it.
+    if(e.error !== 'no-speech' && e.error !== 'network' && e.error !== 'aborted'){
+      document.getElementById('mic-status').textContent = 'Speech recognition error: ' + e.error;
+    }
+  };
+  r.onend = ()=>{
+    if(isRecording && !isPaused){
+      // Small delay avoids "recognition has already started" errors that
+      // happen when start() is called immediately inside onend on some
+      // mobile browsers.
+      setTimeout(()=>{
+        if(isRecording && !isPaused){
+          try{ r.start(); }catch(err){}
+        }
+      }, 250);
+    }
+  };
+  return r;
+}
+
+function renderTranscript(text){
+  const box = document.getElementById('transcript-box');
+  if(text.trim()){
+    box.textContent = text;
+    box.classList.remove('empty');
+    document.getElementById('to-ai-btn').style.opacity = 1;
+    document.getElementById('to-ai-btn').style.pointerEvents = 'auto';
+  } else {
+    box.textContent = 'এখানে আপনার কথা লেখা আকারে দেখা যাবে, অথবা সরাসরি টাইপ করুন…';
+    box.classList.add('empty');
+  }
+}
+
+function onTranscriptEdit(){
+  const box = document.getElementById('transcript-box');
+  transcriptText = box.textContent;
+  const hasText = transcriptText.trim().length > 0;
+  box.classList.toggle('empty', !hasText);
+  document.getElementById('to-ai-btn').style.opacity = hasText ? 1 : 0.4;
+  document.getElementById('to-ai-btn').style.pointerEvents = hasText ? 'auto' : 'none';
+}
+
+function toggleRecording(){
+  if(!isRecording) startRecording();
+  else stopRecording();
+}
+
+async function startRecording(){
+  recognition = getRecognition();
+  if(!recognition){
+    // No live preview available in this browser — that's OK, the real
+    // transcript comes from the backend after Stop, not from this preview.
+    document.getElementById('mic-status').textContent = 'এই ব্রাউজারে live preview নেই, কিন্তু recording চলবে — Stop করলে transcript আসবে।';
+  }
+  // Only wipe the transcript/timer if there's nothing recorded yet — tapping
+  // the mic again after a stop should CONTINUE adding to the existing text,
+  // not erase it. (This was the bug causing earlier speech to disappear.)
+  const isFreshStart = !transcriptText.trim();
+  if(isFreshStart){
+    transcriptText = '';
+    renderTranscript('');
+    timerSeconds = 0;
+    allAudioBlobs = [];
+    if(currentAudioURL){ URL.revokeObjectURL(currentAudioURL); currentAudioURL = null; }
+    document.getElementById('audio-player-wrap').style.display = 'none';
+  }
+  // Acquire the raw audio stream FIRST, before Speech Recognition opens its
+  // own internal mic session — on many Android devices, whichever consumer
+  // claims the mic second gets a muted/silent duplicate stream. Grabbing
+  // this one first gives it the best chance of actually capturing sound.
+  // Live transcript is the core feature — start it immediately, don't make
+  // it wait on the audio permission prompt. Audio capture (for playback)
+  // runs in the background on a best-effort basis; on some Android devices
+  // it may end up silent when Speech Recognition also holds the mic — a
+  // known browser limitation, not something fixable purely in JS.
+  if(recognition){ try{ recognition.start(); }catch(e){} }
+  startAudioCapture();
+  isRecording = true; isPaused = false;
+  document.getElementById('mic-btn').classList.add('recording');
+  document.getElementById('live-tag').style.display = 'inline-block';
+  if(recognition) document.getElementById('mic-status').textContent = 'রেকর্ড হচ্ছে…';
+  document.getElementById('btn-pause').disabled = false;
+  document.getElementById('btn-stop').disabled = false;
+  document.getElementById('btn-resume').disabled = true;
+  timerInterval = setInterval(()=>{
+    timerSeconds++;
+    const m = String(Math.floor(timerSeconds/60)).padStart(2,'0');
+    const s = String(timerSeconds%60).padStart(2,'0');
+    document.getElementById('mic-timer').textContent = m+':'+s;
+  }, 1000);
+}
+
+function pauseRecording(){
+  if(!isRecording) return;
+  isPaused = true;
+  if(recognition){ try{ recognition.stop(); }catch(e){} }
+  if(mediaRecorder && mediaRecorder.state==='recording'){ try{ mediaRecorder.pause(); }catch(e){} }
+  clearInterval(timerInterval);
+  document.getElementById('mic-btn').classList.remove('recording');
+  document.getElementById('mic-status').textContent = 'Pause করা হয়েছে';
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-resume').disabled = false;
+}
+
+function resumeRecording(){
+  if(!isRecording) return;
+  isPaused = false;
+  if(recognition){ try{ recognition.start(); }catch(e){} }
+  if(mediaRecorder && mediaRecorder.state==='paused'){ try{ mediaRecorder.resume(); }catch(e){} }
+  timerInterval = setInterval(()=>{
+    timerSeconds++;
+    const m = String(Math.floor(timerSeconds/60)).padStart(2,'0');
+    const s = String(timerSeconds%60).padStart(2,'0');
+    document.getElementById('mic-timer').textContent = m+':'+s;
+  }, 1000);
+  document.getElementById('mic-btn').classList.add('recording');
+  document.getElementById('mic-status').textContent = 'রেকর্ড হচ্ছে…';
+  document.getElementById('btn-pause').disabled = false;
+  document.getElementById('btn-resume').disabled = true;
+}
+
+function stopRecording(){
+  isRecording = false; isPaused = false;
+  if(recognition){ try{ recognition.stop(); }catch(e){} }
+  if(mediaRecorder && mediaRecorder.state!=='inactive'){ try{ mediaRecorder.stop(); }catch(e){} }
+  clearInterval(timerInterval);
+  document.getElementById('mic-btn').classList.remove('recording');
+  document.getElementById('live-tag').style.display = 'none';
+  document.getElementById('mic-status').textContent = transcriptText.trim() ? 'রেকর্ড সম্পন্ন হয়েছে' : 'রেকর্ড করতে মাইক্রোফোনে চাপ দিন';
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-resume').disabled = true;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+/* ================= Saved Prompts (presets) ================= */
+async function loadPresets(){
+  try{
+    const r = await window.storage.get('user-presets');
+    return r ? JSON.parse(r.value) : DEFAULT_PRESETS;
+  }catch(e){
+    return DEFAULT_PRESETS;
+  }
+}
+
+async function savePresets(list){
+  await window.storage.set('user-presets', JSON.stringify(list));
+}
+
+async function buildPresetRow(){
+  const row = document.getElementById('preset-row');
+  const presets = await loadPresets();
+  row.innerHTML = '';
+  presets.forEach(p=>{
+    const chip = document.createElement('div');
+    chip.className = 'preset-chip' + (selectedPresetId===p.id ? ' on' : '');
+    chip.textContent = p.name;
+    chip.onclick = ()=>{
+      selectedPresetId = p.id;
+      document.getElementById('prompt-input').value = p.prompt;
+      buildPresetRow();
+    };
+    row.appendChild(chip);
+  });
+}
+
+async function saveCurrentPreset(){
+  const text = document.getElementById('prompt-input').value.trim();
+  if(!text){ alert('আগে prompt লিখুন।'); return; }
+  const name = prompt('এই prompt-টির একটি নাম দিন:', 'আমার Prompt');
+  if(!name) return;
+  const presets = await loadPresets();
+  presets.push({id:'p'+Date.now(), name, prompt:text});
+  await savePresets(presets);
+  buildPresetRow();
+  alert('Prompt Save হয়েছে ✓');
+}
+
+/* ================= AI Processing (real Claude API call) ================= */
+async function runAI(){
+  const customPrompt = document.getElementById('prompt-input').value.trim();
+  if(!customPrompt){
+    alert('অনুগ্রহ করে একটি instruction লিখুন অথবা একটি saved prompt বেছে নিন।');
+    return;
+  }
+  goto('view-result');
+  document.getElementById('ai-loading').style.display = 'flex';
+  document.getElementById('result-content').style.display = 'none';
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        messages: [
+          { role: "user", content: `${customPrompt}\n\nTranscript:\n"""${transcriptText || '(কোনো transcript পাওয়া যায়নি)'}"""\n\nশুধু চূড়ান্ত লেখাটি দাও, কোনো preamble ছাড়া।` }
+        ],
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).map(b=>b.text||'').join('\n').trim();
+    document.getElementById('result-text').value = text || 'AI থেকে কোনো ফলাফল পাওয়া যায়নি।';
+  }catch(err){
+    document.getElementById('result-text').value = 'AI processing ব্যর্থ হয়েছে: ' + err.message;
+  }
+  document.getElementById('ai-loading').style.display = 'none';
+  document.getElementById('result-content').style.display = 'block';
+}
+
+/* ================= Audio capture (for playback) ================= */
+function startAudioCapture(){
+  if(!navigator.mediaDevices?.getUserMedia){
+    return Promise.resolve(); // silently degrade — playback just won't be available
+  }
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    }
+  }).then(stream=>{
+    mediaStream = stream;
+    audioChunks = [];
+    try{
+      mediaRecorder = new MediaRecorder(stream);
+    }catch(e){
+      stream.getTracks().forEach(t=>t.stop());
+      return;
+    }
+    mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = ()=>{
+      if(audioChunks.length){
+        allAudioBlobs.push(new Blob(audioChunks, {type:'audio/webm'}));
+        updateAudioPlayer();
+        if(!isRecording){
+          // Recording is fully finished (not just a pause) — send to the
+          // real backend for a much more accurate transcript than the
+          // browser's built-in recognition.
+          sendAudioForRealTranscription();
+        }
+      }
+      stream.getTracks().forEach(t=>t.stop());
+    };
+    // timeslice (250ms) forces regular dataavailable events instead of one
+    // big chunk only at stop — helps on some Android WebViews where a
+    // single huge chunk can end up empty/corrupt.
+    mediaRecorder.start(250);
+  }).catch(()=>{
+    // mic permission for audio capture denied/unavailable — transcript still works
+  });
+}
+
+function updateAudioPlayer(){
+  if(!allAudioBlobs.length) return;
+  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
+  if(currentAudioURL) URL.revokeObjectURL(currentAudioURL);
+  currentAudioURL = URL.createObjectURL(combined);
+  const audioEl = document.getElementById('audio-player');
+  audioEl.src = currentAudioURL;
+  audioEl.muted = false;
+  audioEl.volume = 1.0;
+  document.getElementById('audio-player-wrap').style.display = 'block';
+}
+
+async function sendAudioForRealTranscription(){
+  if(!allAudioBlobs.length) return;
+  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
+  document.getElementById('mic-status').textContent = 'আরও নির্ভুল করতে server-এ পাঠানো হচ্ছে…';
+  try{
+    const formData = new FormData();
+    formData.append('audio', combined, 'recording.webm');
+    formData.append('encoding', 'WEBM_OPUS');
+    formData.append('languageCode', selectedLang);
+    formData.append('alternativeLanguageCode', selectedLang === 'bn-BD' ? 'en-US' : 'bn-BD');
+    const res = await fetch(`${BACKEND_URL}/api/transcribe`, { method:'POST', body: formData });
+    if(!res.ok) throw new Error('backend error ' + res.status);
+    const data = await res.json();
+    if(data.transcript && data.transcript.trim()){
+      transcriptText = data.transcript.trim();
+      renderTranscript(transcriptText);
+      document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে (Google STT দিয়ে যাচাই করা)';
+    } else {
+      document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে';
+    }
+  }catch(err){
+    // Backend might be asleep (free-tier cold start) or briefly
+    // unreachable — silently keep the browser's live transcript instead
+    // of showing a scary error, since that's still usable.
+    document.getElementById('mic-status').textContent = 'রেকর্ড সম্পন্ন হয়েছে';
+  }
+}
+
+function clearTranscript(){
+  if(transcriptText.trim() && !confirm('বর্তমান transcript মুছে নতুন করে শুরু করবেন?')) return;
+  transcriptText = '';
+  timerSeconds = 0;
+  document.getElementById('mic-timer').textContent = '00:00';
+  renderTranscript('');
+  allAudioBlobs = [];
+  if(currentAudioURL){ URL.revokeObjectURL(currentAudioURL); currentAudioURL = null; }
+  document.getElementById('audio-player-wrap').style.display = 'none';
+  document.getElementById('audio-player').removeAttribute('src');
+}
+
+function downloadAudio(){
+  if(!allAudioBlobs.length){ alert('এখনো কোনো audio recording নেই।'); return; }
+  const combined = new Blob(allAudioBlobs, {type:'audio/webm'});
+  const url = URL.createObjectURL(combined);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'voicewrite-recording-' + Date.now() + '.webm';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadTranscriptText(){
+  if(!transcriptText.trim()){ alert('এখনো কোনো transcript নেই।'); return; }
+  const blob = new Blob([transcriptText], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'voicewrite-transcript-' + Date.now() + '.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyTranscript(){
+  navigator.clipboard?.writeText(transcriptText).catch(()=>{});
+  const box = document.getElementById('transcript-box');
+  const range = document.createRange();
+  range.selectNodeContents(box);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand('copy');
+  sel.removeAllRanges();
+}
+
+function copyResult(){
+  const t = document.getElementById('result-text');
+  t.select();
+  document.execCommand('copy');
+}
+
+async function shareResult(){
+  const text = document.getElementById('result-text').value;
+  if(navigator.share){
+    try{ await navigator.share({ text }); }catch(e){}
+  } else {
+    copyResult();
+    alert('এই ব্রাউজারে Share সাপোর্ট নেই — লেখাটি Copy করা হয়েছে।');
+  }
+}
+
+function downloadExcel(){
+  const text = document.getElementById('result-text').value;
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const rows = [['VoiceWrite AI — Result'], ['']];
+  lines.forEach(line=>{ rows.push([line]); });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch: 90}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Result');
+  XLSX.writeFile(wb, 'voicewrite-result.xlsx');
+}
+
+function downloadResult(){
+  const text = document.getElementById('result-text').value;
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'voicewrite-result.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function saveResult(){
+  const text = document.getElementById('result-text').value;
+  const presets = await loadPresets();
+  const presetName = (presets.find(p=>p.id===selectedPresetId)||{}).name || 'Custom Prompt';
+  const entry = {
+    mode: presetName,
+    modeName: presetName,
+    transcript: transcriptText,
+    result: text,
+    date: new Date().toISOString()
+  };
+  const key = 'history:' + Date.now();
+  try{
+    await window.storage.set(key, JSON.stringify(entry));
+    alert('সংরক্ষণ করা হয়েছে ✓');
+    goto('view-history');
+  }catch(e){
+    alert('Save ব্যর্থ হয়েছে।');
+  }
+}
+
+/* ================= History ================= */
+async function loadHistory(){
+  const list = document.getElementById('history-list');
+  list.innerHTML = '<div class="empty-state">লোড হচ্ছে…</div>';
+  try{
+    const res = await window.storage.list('history:');
+    const keys = (res && res.keys) || [];
+    if(keys.length===0){
+      list.innerHTML = '<div class="empty-state">এখনো কোনো সংরক্ষিত লেখা নেই।<br>Recording করে AI দিয়ে প্রথম লেখাটি তৈরি করুন।</div>';
+      return;
+    }
+    const entries = [];
+    for(const k of keys){
+      try{
+        const r = await window.storage.get(k);
+        if(r) entries.push(JSON.parse(r.value));
+      }catch(e){}
+    }
+    entries.sort((a,b)=> new Date(b.date) - new Date(a.date));
+    list.innerHTML = '';
+    entries.forEach(en=>{
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      const d = new Date(en.date);
+      div.innerHTML = `<div class="h-top"><span class="h-mode">${en.modeName}</span><span class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="h-preview">${(en.result||'').slice(0,140)}</div>`;
+      div.onclick = ()=>{
+        document.getElementById('result-text').value = en.result;
+        document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('result-content').style.display = 'block';
+        goto('view-result');
+      };
+      list.appendChild(div);
+    });
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">এখনো কোনো সংরক্ষিত লেখা নেই।</div>';
+  }
+}
+
+/* ================= Admin mock data ================= */
+let mockUsers = [
+  {name:'রাহাত ইসলাম', email:'rahat@example.com', active:true},
+  {name:'সুমাইয়া আক্তার', email:'sumaiya@example.com', active:true},
+  {name:'Tanvir Ahmed', email:'tanvir@example.com', active:false},
+  {name:'নাদিয়া হক', email:'nadia@example.com', active:true},
+  {name:'Jahid Hasan', email:'jahid@example.com', active:false},
+];
+
+function buildAdminUsers(){
+  const wrap = document.getElementById('admin-users');
+  wrap.innerHTML = '';
+  mockUsers.forEach((u, idx)=>{
+    const div = document.createElement('div');
+    div.className = 'admin-user';
+    div.innerHTML = `<div><div class="u-name">${u.name}</div><div class="u-meta">${u.email}</div></div>
+      <button class="toggle-btn ${u.active?'active':'inactive'}" id="tgl-${idx}">${u.active?'Active':'Inactive'}</button>`;
+    wrap.appendChild(div);
+    document.getElementById('tgl-'+idx).onclick = ()=>{
+      mockUsers[idx].active = !mockUsers[idx].active;
+      buildAdminUsers();
+    };
+  });
+}
+
+/* ================= PWA: install-on-phone ================= */
+let deferredInstallPrompt = null;
+
+function isRunningInstalled(){
+  return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS Safari flag
+}
+
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('install-btn');
+  if(btn && !isRunningInstalled()) btn.style.display = 'block';
+});
+
+async function installApp(){
+  const btn = document.getElementById('install-btn');
+  if(!deferredInstallPrompt){
+    alert('এই ব্রাউজারে সরাসরি Install বাটন সাপোর্ট নেই।\n\nSafari (iPhone)-এ: নিচের Share বাটন → "Add to Home Screen"।\nChrome (Android)-এ: ⋮ মেনু → "Add to Home screen" / "Install app"।');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if(btn) btn.style.display = 'none';
+}
+
+function updateInstalledBadge(){
+  const hint = document.getElementById('installed-hint');
+  const btn = document.getElementById('install-btn');
+  if(isRunningInstalled()){
+    if(hint) hint.style.display = 'block';
+    if(btn) btn.style.display = 'none';
+  }
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{
+      // offline app-shell caching just won't be available — everything
+      // else (recording, AI, etc.) still works normally over the network
+    });
+  });
+}
+
+/* init */
+prefillLogin();
+updateInstalledBadge();
+</script>
+</body>
+</html>
