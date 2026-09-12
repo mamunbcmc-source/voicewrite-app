@@ -662,7 +662,11 @@
         <div class="topbar">
           <div class="brand">🗂️ Recorded Meetings</div>
         </div>
-        <div class="body-scroll" id="meetings-list"></div>
+        <div class="body-scroll">
+          <input type="file" id="audio-upload-input" accept="audio/*" style="display:none;" onchange="handleAudioFileUpload(event)">
+          <button class="upload-btn" style="margin-bottom:14px;" onclick="document.getElementById('audio-upload-input').click()">📁 ফোন থেকে Audio ফাইল Upload করুন</button>
+          <div id="meetings-list"></div>
+        </div>
         <div class="bottom-nav">
           <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
           <button class="on" onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
@@ -1329,6 +1333,15 @@ async function loadMeetings(){
   });
 }
 
+const TRANSLATE_LANGS = [
+  {code:'bn', name:'বাংলা'}, {code:'en', name:'English'}, {code:'hi', name:'हिन्दी (Hindi)'},
+  {code:'ur', name:'اردو (Urdu)'}, {code:'ar', name:'العربية (Arabic)'}, {code:'es', name:'Español'},
+  {code:'fr', name:'Français'}, {code:'de', name:'Deutsch'}, {code:'pt', name:'Português'},
+  {code:'ru', name:'Русский'}, {code:'zh', name:'中文 (Chinese)'}, {code:'ja', name:'日本語 (Japanese)'},
+  {code:'ko', name:'한국어 (Korean)'}, {code:'tr', name:'Türkçe'}, {code:'id', name:'Bahasa Indonesia'},
+  {code:'ms', name:'Bahasa Melayu'}, {code:'th', name:'ไทย (Thai)'}, {code:'vi', name:'Tiếng Việt'}
+];
+
 function renderMeetingItem(rec){
   const d = new Date(rec.dateISO);
   const dateLabel = d.toLocaleDateString() + ' · ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
@@ -1338,11 +1351,27 @@ function renderMeetingItem(rec){
 
   const isExpanded = expandedMeetingId === rec.id;
   const audioURL = URL.createObjectURL(rec.audioBlob);
+  const sourceTag = rec.source === 'uploaded' ? ' · 📁 Uploaded' : '';
 
   let transcriptBlockHTML = '';
   if(rec.transcribing){
     transcriptBlockHTML = `<div class="h-preview">⏳ Convert হচ্ছে — Google Speech-to-Text-এ পাঠানো হয়েছে…</div>`;
   } else if(rec.transcript){
+    const translations = rec.translations || {};
+    const langOptions = TRANSLATE_LANGS.map(l => `<option value="${l.code}">${l.name}</option>`).join('');
+    let translatedBlockHTML = '';
+    if(rec.translating){
+      translatedBlockHTML = `<div class="h-preview" style="margin-top:8px;">⏳ Translate হচ্ছে…</div>`;
+    } else if(rec.lastTranslationLang && translations[rec.lastTranslationLang]){
+      const langName = (TRANSLATE_LANGS.find(l=>l.code===rec.lastTranslationLang)||{}).name || rec.lastTranslationLang;
+      translatedBlockHTML = `
+        <div class="section-label" style="margin-top:10px;">Translation (${langName})</div>
+        <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(translations[rec.lastTranslationLang])}</div>
+        <div class="result-actions">
+          <button onclick="copyMeetingTranslation('${rec.id}')">📋 Copy Translation</button>
+          <button onclick="downloadMeetingTranslation('${rec.id}')">⬇️ Translation</button>
+        </div>`;
+    }
     transcriptBlockHTML = `
       <div class="section-label" style="margin-top:10px;">Transcript</div>
       <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(rec.transcript)}</div>
@@ -1350,7 +1379,13 @@ function renderMeetingItem(rec){
         <button onclick="copyMeetingTranscript('${rec.id}')">📋 Copy</button>
         <button onclick="downloadMeetingTranscript('${rec.id}')">⬇️ Text</button>
         <button onclick="sendMeetingToAI('${rec.id}')">🤖 Send to AI</button>
-      </div>`;
+      </div>
+      <div class="section-label" style="margin-top:12px;">🌐 অন্য ভাষায় Translate করুন</div>
+      <div style="display:flex; gap:8px; margin-bottom:6px;">
+        <select id="lang-select-${rec.id}" style="flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--line); font-family:inherit; font-size:13px;">${langOptions}</select>
+        <button onclick="translateMeetingTranscript('${rec.id}')" style="padding:8px 14px; border-radius:10px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-deep); font-weight:700; font-size:13px; cursor:pointer;">Translate</button>
+      </div>
+      ${translatedBlockHTML}`;
   } else {
     transcriptBlockHTML = `<button class="btn-primary" style="margin-top:8px;" onclick="convertMeetingToText('${rec.id}')">📝 Convert to Text</button>`;
   }
@@ -1358,7 +1393,7 @@ function renderMeetingItem(rec){
   wrap.innerHTML = `
     <div class="h-top">
       <span class="h-mode">Meeting #${rec.number}</span>
-      <span class="h-date">${dateLabel} · ${fmtDuration(rec.durationSeconds||0)}</span>
+      <span class="h-date">${dateLabel} · ${fmtDuration(rec.durationSeconds||0)}${sourceTag}</span>
     </div>
     <div class="result-actions" style="margin-top:8px;">
       <button onclick="toggleMeetingExpand('${rec.id}')">${isExpanded ? '🔼 বন্ধ করুন' : '▶️ শুনুন / বিস্তারিত'}</button>
@@ -1452,6 +1487,107 @@ async function downloadMeetingTranscript(id){
   const a = document.createElement('a');
   a.href = url;
   a.download = `voicewrite-meeting-${rec.number}-transcript.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---- Upload an existing audio file (e.g. WhatsApp voice note) as a new meeting ---- */
+function handleAudioFileUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('audio/')){
+    alert('অনুগ্রহ করে একটি audio ফাইল বেছে নিন।');
+    event.target.value = '';
+    return;
+  }
+
+  const tempURL = URL.createObjectURL(file);
+  const probe = new Audio();
+  probe.preload = 'metadata';
+  probe.src = tempURL;
+  probe.onloadedmetadata = async ()=>{
+    const durationSeconds = isFinite(probe.duration) ? Math.round(probe.duration) : 0;
+    URL.revokeObjectURL(tempURL);
+    const number = await dbNextRecordingNumber();
+    const entry = {
+      id: 'rec_' + Date.now(),
+      number,
+      dateISO: new Date().toISOString(),
+      durationSeconds,
+      lang: selectedLang,
+      audioBlob: file,
+      transcript: null,
+      transcribing: false,
+      source: 'uploaded'
+    };
+    try{
+      await dbAddRecording(entry);
+      await loadMeetings();
+    }catch(e){
+      alert('ফাইলটি সংরক্ষণ করা যায়নি।');
+    }
+  };
+  probe.onerror = ()=>{
+    URL.revokeObjectURL(tempURL);
+    alert('এই audio ফাইলটি পড়া যায়নি — অন্য একটি ফাইল চেষ্টা করুন।');
+  };
+  event.target.value = '';
+}
+async function translateMeetingTranscript(id){
+  const select = document.getElementById(`lang-select-${id}`);
+  const targetCode = select ? select.value : 'en';
+  const targetName = (TRANSLATE_LANGS.find(l=>l.code===targetCode)||{}).name || targetCode;
+
+  await dbUpdateRecording(id, { translating: true });
+  await loadMeetings();
+
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec){ return; }
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        messages: [
+          { role: "user", content: `নিচের লেখাটি ${targetName} ভাষায় সম্পূর্ণ অনুবাদ করো। শুধু অনুবাদ করা লেখাটি দাও, কোনো preamble, ব্যাখ্যা বা মূল ভাষার লেখা পুনরায় দিও না।\n\n"""${rec.transcript}"""` }
+        ],
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).map(b=>b.text||'').join('\n').trim();
+    const translations = Object.assign({}, rec.translations || {}, { [targetCode]: text || 'অনুবাদ ব্যর্থ হয়েছে।' });
+    await dbUpdateRecording(id, { translating: false, translations, lastTranslationLang: targetCode });
+  }catch(err){
+    await dbUpdateRecording(id, { translating: false });
+    alert('Translate করা যায়নি — ইন্টারনেট সংযোগ বা key সমস্যা থাকতে পারে।');
+  }
+  expandedMeetingId = id;
+  await loadMeetings();
+}
+
+async function copyMeetingTranslation(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.lastTranslationLang) return;
+  const text = (rec.translations||{})[rec.lastTranslationLang];
+  if(text) navigator.clipboard?.writeText(text).catch(()=>{});
+}
+
+async function downloadMeetingTranslation(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.lastTranslationLang) return;
+  const text = (rec.translations||{})[rec.lastTranslationLang];
+  if(!text) return;
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `voicewrite-meeting-${rec.number}-${rec.lastTranslationLang}.txt`;
   a.click();
   URL.revokeObjectURL(url);
 }
