@@ -624,12 +624,7 @@
           <div class="brand" id="home-brand">🎙️ Home</div>
         </div>
         <div class="body-scroll">
-          <div class="section-label">Speech Language</div>
-          <div class="lang-toggle">
-            <button id="lang-bn" class="on" onclick="setLang('bn-BD')">বাংলা</button>
-            <button id="lang-en" onclick="setLang('en-US')">English</button>
-          </div>
-          <div class="lang-note">আপনার meeting বাংলা + English mixed হলেও সমস্যা নেই — Convert to Text করার সময় যে ভাষায় বলা হয়েছে, সেই ভাষাতেই transcript হবে।</div>
+          <div class="lang-note" style="margin-top:0;">🌐 বাংলা, English বা মিশ্র — যেভাবেই বলুন, AI স্বয়ংক্রিয়ভাবে ভাষা বুঝে transcript বানাবে। আলাদা করে ভাষা বেছে দিতে হবে না।</div>
 
           <div class="mic-panel" id="mic-panel">
             <div class="live-tag" id="live-tag" style="display:none;">🔴 LIVE MEETING</div>
@@ -1014,14 +1009,6 @@ function goto(id){
   });
   if(id==='view-meetings') loadMeetings();
   if(id==='view-history') loadHistory();
-}
-
-/* ================= Language ================= */
-function setLang(lang){
-  selectedLang = lang;
-  document.getElementById('lang-bn').classList.toggle('on', lang==='bn-BD');
-  document.getElementById('lang-en').classList.toggle('on', lang==='en-US');
-  if(recognition) recognition.lang = lang;
 }
 
 /* ================= Voice Recording (single audio stream — no live preview) ================= */
