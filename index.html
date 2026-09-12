@@ -1276,22 +1276,20 @@ async function runAI(){
   }
 
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        messages: [
-          { role: "user", content: `${fullPrompt}\n\nTranscript:\n"""${transcriptText || '(কোনো transcript পাওয়া যায়নি)'}"""\n\nশুধু চূড়ান্ত লেখাটি দাও, কোনো preamble ছাড়া।` }
-        ],
+        transcript: transcriptText || '(কোনো transcript পাওয়া যায়নি)',
+        mode: 'custom',
+        customInstruction: fullPrompt
       })
     });
+    if(!response.ok) throw new Error('backend error ' + response.status);
     const data = await response.json();
-    const text = (data.content || []).map(b=>b.text||'').join('\n').trim();
-    document.getElementById('result-text').value = text || 'AI থেকে কোনো ফলাফল পাওয়া যায়নি।';
+    document.getElementById('result-text').value = (data.result || '').trim() || 'AI থেকে কোনো ফলাফল পাওয়া যায়নি।';
   }catch(err){
-    document.getElementById('result-text').value = 'AI processing ব্যর্থ হয়েছে: ' + err.message;
+    document.getElementById('result-text').value = 'AI processing ব্যর্থ হয়েছে — backend-এ ANTHROPIC_API_KEY বসানো আছে কিনা, বা server ঘুমিয়ে আছে কিনা (৩০-৫০ সেকেন্ড পর আবার চেষ্টা করুন) দেখুন। বিস্তারিত: ' + err.message;
   }
   document.getElementById('ai-loading').style.display = 'none';
   document.getElementById('result-content').style.display = 'block';
@@ -1546,24 +1544,23 @@ async function translateMeetingTranscript(id){
   if(!rec){ return; }
 
   try{
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        messages: [
-          { role: "user", content: `নিচের লেখাটি ${targetName} ভাষায় সম্পূর্ণ অনুবাদ করো। শুধু অনুবাদ করা লেখাটি দাও, কোনো preamble, ব্যাখ্যা বা মূল ভাষার লেখা পুনরায় দিও না।\n\n"""${rec.transcript}"""` }
-        ],
+        transcript: rec.transcript,
+        mode: 'custom',
+        customInstruction: `নিচের লেখাটি ${targetName} ভাষায় সম্পূর্ণ অনুবাদ করো। শুধু অনুবাদ করা লেখাটি দাও, কোনো preamble, ব্যাখ্যা বা মূল ভাষার লেখা পুনরায় দিও না।`
       })
     });
+    if(!response.ok) throw new Error('backend error ' + response.status);
     const data = await response.json();
-    const text = (data.content || []).map(b=>b.text||'').join('\n').trim();
+    const text = (data.result || '').trim();
     const translations = Object.assign({}, rec.translations || {}, { [targetCode]: text || 'অনুবাদ ব্যর্থ হয়েছে।' });
     await dbUpdateRecording(id, { translating: false, translations, lastTranslationLang: targetCode });
   }catch(err){
     await dbUpdateRecording(id, { translating: false });
-    alert('Translate করা যায়নি — ইন্টারনেট সংযোগ বা key সমস্যা থাকতে পারে।');
+    alert('Translate করা যায়নি — backend-এ ANTHROPIC_API_KEY বসানো আছে কিনা দেখুন, অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।');
   }
   expandedMeetingId = id;
   await loadMeetings();
