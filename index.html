@@ -1340,37 +1340,57 @@ function renderMeetingItem(rec){
 
   let transcriptBlockHTML = '';
   if(rec.transcribing){
-    transcriptBlockHTML = `<div class="h-preview">⏳ Convert হচ্ছে — Google Speech-to-Text-এ পাঠানো হয়েছে…</div>`;
+    transcriptBlockHTML = `<div class="h-preview">⏳ Convert হচ্ছে — AI-কে পাঠানো হয়েছে…</div>`;
   } else if(rec.transcript){
-    const translations = rec.translations || {};
     const langOptions = TRANSLATE_LANGS.map(l => `<option value="${l.code}">${l.name}</option>`).join('');
-    let translatedBlockHTML = '';
-    if(rec.translating){
-      translatedBlockHTML = `<div class="h-preview" style="margin-top:8px;">⏳ Translate হচ্ছে…</div>`;
-    } else if(rec.lastTranslationLang && translations[rec.lastTranslationLang]){
-      const langName = (TRANSLATE_LANGS.find(l=>l.code===rec.lastTranslationLang)||{}).name || rec.lastTranslationLang;
-      translatedBlockHTML = `
-        <div class="section-label" style="margin-top:10px;">Translation (${langName})</div>
-        <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(translations[rec.lastTranslationLang])}</div>
+
+    // Mode 2: Refine (AI polish)
+    let refineBlockHTML = '';
+    if(rec.refining){
+      refineBlockHTML = `<div class="h-preview" style="margin-top:8px;">⏳ Refine হচ্ছে…</div>`;
+    } else if(rec.refinedText){
+      refineBlockHTML = `
+        <div class="section-label" style="margin-top:10px;">✨ Refine (গোছানো লেখা)</div>
+        <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(rec.refinedText)}</div>
         <div class="result-actions">
-          <button onclick="copyMeetingTranslation('${rec.id}')">📋 Copy Translation</button>
-          <button onclick="downloadMeetingTranslation('${rec.id}')">⬇️ Translation</button>
+          <button onclick="copyMeetingRefine('${rec.id}')">📋 Copy</button>
+          <button onclick="downloadMeetingRefine('${rec.id}')">⬇️ Text</button>
         </div>`;
     }
+
+    // Mode 3: Learner (translate + pronunciation + word meanings)
+    const learnerLangs = rec.learnerLangs || {};
+    let learnerBlockHTML = '';
+    if(rec.learnerLoading){
+      learnerBlockHTML = `<div class="h-preview" style="margin-top:8px;">⏳ Learner Mode তৈরি হচ্ছে…</div>`;
+    } else if(rec.lastLearnerLang && learnerLangs[rec.lastLearnerLang]){
+      const langName = (TRANSLATE_LANGS.find(l=>l.code===rec.lastLearnerLang)||{}).name || rec.lastLearnerLang;
+      learnerBlockHTML = `
+        <div class="section-label" style="margin-top:10px;">🎓 Learner Mode (${langName})</div>
+        <div class="transcript-box" style="margin-bottom:10px; white-space:pre-wrap;">${escapeHTML(learnerLangs[rec.lastLearnerLang])}</div>
+        <div class="result-actions">
+          <button onclick="copyMeetingLearner('${rec.id}')">📋 Copy</button>
+          <button onclick="downloadMeetingLearner('${rec.id}')">⬇️ Text</button>
+        </div>`;
+    }
+
     transcriptBlockHTML = `
-      <div class="section-label" style="margin-top:10px;">Transcript</div>
+      <div class="section-label" style="margin-top:10px;">📝 Original (মূল Transcript)</div>
       <div class="transcript-box" style="margin-bottom:10px;">${escapeHTML(rec.transcript)}</div>
       <div class="result-actions">
         <button onclick="copyMeetingTranscript('${rec.id}')">📋 Copy</button>
         <button onclick="downloadMeetingTranscript('${rec.id}')">⬇️ Text</button>
         <button onclick="sendMeetingToAI('${rec.id}')">🤖 Send to AI</button>
       </div>
-      <div class="section-label" style="margin-top:12px;">🌐 অন্য ভাষায় Translate করুন</div>
-      <div style="display:flex; gap:8px; margin-bottom:6px;">
-        <select id="lang-select-${rec.id}" style="flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--line); font-family:inherit; font-size:13px;">${langOptions}</select>
-        <button onclick="translateMeetingTranscript('${rec.id}')" style="padding:8px 14px; border-radius:10px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-deep); font-weight:700; font-size:13px; cursor:pointer;">Translate</button>
+
+      <div class="section-label" style="margin-top:14px;">✨ ৩টি Smart AI Mode</div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button onclick="refineMeetingTranscript('${rec.id}')" style="flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent-deep); font-weight:700; font-size:13px; cursor:pointer;">✨ Refine</button>
+        <select id="learner-lang-select-${rec.id}" style="flex:1; padding:9px 8px; border-radius:10px; border:1px solid var(--line); font-family:inherit; font-size:13px;">${langOptions}</select>
+        <button onclick="learnerModeMeetingTranscript('${rec.id}')" style="flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--admin); background:var(--admin-soft); color:var(--admin); font-weight:700; font-size:13px; cursor:pointer;">🎓 Learner</button>
       </div>
-      ${translatedBlockHTML}`;
+      ${refineBlockHTML}
+      ${learnerBlockHTML}`;
   } else {
     transcriptBlockHTML = `<button class="btn-primary" style="margin-top:8px;" onclick="convertMeetingToText('${rec.id}')">📝 Convert to Text</button>`;
   }
@@ -1518,12 +1538,8 @@ function handleAudioFileUpload(event){
   };
   event.target.value = '';
 }
-async function translateMeetingTranscript(id){
-  const select = document.getElementById(`lang-select-${id}`);
-  const targetCode = select ? select.value : 'en';
-  const targetName = (TRANSLATE_LANGS.find(l=>l.code===targetCode)||{}).name || targetCode;
-
-  await dbUpdateRecording(id, { translating: true });
+async function refineMeetingTranscript(id){
+  await dbUpdateRecording(id, { refining: true });
   await loadMeetings();
 
   const all = await dbGetAllRecordings();
@@ -1537,44 +1553,99 @@ async function translateMeetingTranscript(id){
       body: JSON.stringify({
         transcript: rec.transcript,
         mode: 'custom',
-        customInstruction: `নিচের লেখাটি ${targetName} ভাষায় সম্পূর্ণ অনুবাদ করো। শুধু অনুবাদ করা লেখাটি দাও, কোনো preamble, ব্যাখ্যা বা মূল ভাষার লেখা পুনরায় দিও না।`
+        customInstruction: 'এই কথ্য transcript-এর ভুল, পুনরাবৃত্তি, filler word (যেমন "মানে", "আসলে", "তো") ঠিক করে একটি পরিষ্কার, স্বাভাবিক ও গোছানো লেখায় রূপান্তর করো। মূল ভাষা (বাংলা/ইংরেজি/মিশ্র) ও মূল অর্থ অবিকল বজায় রেখো — নতুন তথ্য যোগ কোরো না।'
       })
     });
     if(!response.ok) throw new Error('backend error ' + response.status);
     const data = await response.json();
     const text = (data.result || '').trim();
-    const translations = Object.assign({}, rec.translations || {}, { [targetCode]: text || 'অনুবাদ ব্যর্থ হয়েছে।' });
-    await dbUpdateRecording(id, { translating: false, translations, lastTranslationLang: targetCode });
+    await dbUpdateRecording(id, { refining: false, refinedText: text || 'Refine ব্যর্থ হয়েছে।' });
   }catch(err){
-    await dbUpdateRecording(id, { translating: false });
-    alert('Translate করা যায়নি — backend-এ ANTHROPIC_API_KEY বসানো আছে কিনা দেখুন, অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।');
+    await dbUpdateRecording(id, { refining: false });
+    alert('Refine করা যায়নি — backend-এ GROQ_API_KEY বসানো আছে কিনা দেখুন, অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।');
   }
   expandedMeetingId = id;
   await loadMeetings();
 }
 
-async function copyMeetingTranslation(id){
+async function copyMeetingRefine(id){
   const all = await dbGetAllRecordings();
   const rec = all.find(r=>r.id===id);
-  if(!rec || !rec.lastTranslationLang) return;
-  const text = (rec.translations||{})[rec.lastTranslationLang];
+  if(rec?.refinedText) navigator.clipboard?.writeText(rec.refinedText).catch(()=>{});
+}
+
+async function downloadMeetingRefine(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec?.refinedText) return;
+  const blob = new Blob([rec.refinedText], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `voicewrite-meeting-${rec.number}-refined.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---- Learner Mode: translation + pronunciation + key word meanings ---- */
+async function learnerModeMeetingTranscript(id){
+  const select = document.getElementById(`learner-lang-select-${id}`);
+  const targetCode = select ? select.value : 'en';
+  const targetName = (TRANSLATE_LANGS.find(l=>l.code===targetCode)||{}).name || targetCode;
+
+  await dbUpdateRecording(id, { learnerLoading: true });
+  await loadMeetings();
+
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec){ return; }
+
+  try{
+    const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcript: rec.transcript,
+        mode: 'custom',
+        customInstruction: `তুমি একজন ভাষা-শিক্ষক। নিচের transcript-টি নিয়ে "Learner Mode" তৈরি করো, ঠিক এই কাঠামোয়:\n\n১) Translation: সম্পূর্ণ লেখাটি ${targetName} ভাষায় অনুবাদ করো।\n২) Pronunciation: সেই অনুবাদের রোমান হরফে (Latin script) উচ্চারণ লিখো, যাতে না জানা ভাষাতেও পড়া যায়।\n৩) Key Words: transcript বা অনুবাদ থেকে ৩-৬টি গুরুত্বপূর্ণ/কঠিন শব্দ বেছে, প্রতিটির অর্থ ছোট করে বাংলায় বুঝিয়ে দাও (একটি করে লাইনে, "শব্দ — অর্থ" ফরম্যাটে)।\n\nএই তিনটি অংশ স্পষ্ট heading সহ আলাদা আলাদা করে দাও। কোনো বাড়তি ভূমিকা বা ব্যাখ্যা দিও না।`
+      })
+    });
+    if(!response.ok) throw new Error('backend error ' + response.status);
+    const data = await response.json();
+    const text = (data.result || '').trim();
+    const learnerLangs = Object.assign({}, rec.learnerLangs || {}, { [targetCode]: text || 'Learner Mode ব্যর্থ হয়েছে।' });
+    await dbUpdateRecording(id, { learnerLoading: false, learnerLangs, lastLearnerLang: targetCode });
+  }catch(err){
+    await dbUpdateRecording(id, { learnerLoading: false });
+    alert('Learner Mode তৈরি করা যায়নি — backend-এ GROQ_API_KEY বসানো আছে কিনা দেখুন, অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।');
+  }
+  expandedMeetingId = id;
+  await loadMeetings();
+}
+
+async function copyMeetingLearner(id){
+  const all = await dbGetAllRecordings();
+  const rec = all.find(r=>r.id===id);
+  if(!rec || !rec.lastLearnerLang) return;
+  const text = (rec.learnerLangs||{})[rec.lastLearnerLang];
   if(text) navigator.clipboard?.writeText(text).catch(()=>{});
 }
 
-async function downloadMeetingTranslation(id){
+async function downloadMeetingLearner(id){
   const all = await dbGetAllRecordings();
   const rec = all.find(r=>r.id===id);
-  if(!rec || !rec.lastTranslationLang) return;
-  const text = (rec.translations||{})[rec.lastTranslationLang];
+  if(!rec || !rec.lastLearnerLang) return;
+  const text = (rec.learnerLangs||{})[rec.lastLearnerLang];
   if(!text) return;
   const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `voicewrite-meeting-${rec.number}-${rec.lastTranslationLang}.txt`;
+  a.download = `voicewrite-meeting-${rec.number}-learner-${rec.lastLearnerLang}.txt`;
   a.click();
   URL.revokeObjectURL(url);
 }
+
 
 async function sendMeetingToAI(id){
   const all = await dbGetAllRecordings();
