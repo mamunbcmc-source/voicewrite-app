@@ -1035,7 +1035,12 @@ async function startRecording(){
   let stream;
   try{
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      // Meeting recordings are often captured with the phone several feet
+      // away from whoever is speaking (not held close like a voice note),
+      // so the phone's own noise suppression + auto volume boost genuinely
+      // help Whisper hear faint/distant speech more clearly here — unlike
+      // a close-mic scenario where raw/unprocessed audio is usually better.
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
   }catch(e){
     document.getElementById('mic-status').textContent = 'মাইক্রোফোন পারমিশন পাওয়া যায়নি।';
