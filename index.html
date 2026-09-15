@@ -571,6 +571,9 @@
   }
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -603,18 +606,18 @@
       <div class="view active" id="view-login">
         <div class="login-wrap">
           <div class="login-title">স্বাগতম 👋</div>
-          <div class="login-sub">আপনার account দিয়ে লগইন করুন</div>
+          <div class="login-sub">আপনার office account দিয়ে লগইন করুন</div>
           <div class="field">
-            <label>User ID</label>
-            <input id="login-id" type="text" name="vw-uid-field" placeholder="demo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <label>Email</label>
+            <input id="login-id" type="email" name="vw-uid-field" placeholder="you@company.com" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <div class="field">
             <label>Password</label>
             <input id="login-pass" type="password" name="vw-pwd-field" placeholder="••••••••" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <button class="btn-primary" id="login-btn" onclick="doLogin()">লগইন করুন</button>
-          <div class="login-error" id="login-error">ভুল User ID অথবা Password।</div>
-          <div class="login-hint">এটি শুধুমাত্র development/testing credential। Settings থেকে Password পরিবর্তন করা যাবে।</div>
+          <div class="login-error" id="login-error">ভুল Email অথবা Password।</div>
+          <div class="login-hint">Account না থাকলে আপনার office administrator-এর সাথে যোগাযোগ করুন।</div>
         </div>
       </div>
 
@@ -649,6 +652,7 @@
           <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab" style="display:none;" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
         </div>
       </div>
 
@@ -667,6 +671,7 @@
           <button class="on" onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab" style="display:none;" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
         </div>
       </div>
 
@@ -729,6 +734,7 @@
           <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab" style="display:none;" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
         </div>
       </div>
 
@@ -743,6 +749,7 @@
           <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button class="on" onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab" style="display:none;" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
         </div>
       </div>
 
@@ -755,7 +762,7 @@
           <div class="section-label">Account</div>
           <div class="history-item" style="cursor:default;">
             <div class="h-top"><span class="h-mode" id="settings-username">demo</span></div>
-            <div class="h-preview">এটি এই ফোনের একমাত্র account।</div>
+            <div class="h-preview">আপনার office account।</div>
           </div>
 
           <button class="btn-primary" id="install-btn" style="display:none; margin-top:14px;" onclick="installApp()">📲 Home Screen-এ Install করুন</button>
@@ -789,6 +796,49 @@
           <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
           <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
           <button class="on" onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab" style="display:none;" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
+        </div>
+      </div>
+
+      <!-- ADMIN PANEL VIEW -->
+      <div class="view" id="view-admin">
+        <div class="topbar">
+          <div class="brand">🛡️ Admin Panel</div>
+        </div>
+        <div class="body-scroll">
+          <div class="section-label">নতুন Employee Account</div>
+          <div class="field">
+            <label>Name</label>
+            <input id="admin-new-name" type="text" placeholder="নাম">
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input id="admin-new-email" type="email" placeholder="employee@company.com" autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input id="admin-new-password" type="text" placeholder="কমপক্ষে ৬ অক্ষর">
+          </div>
+          <div class="field">
+            <label>Role</label>
+            <select id="admin-new-role" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); font-family:inherit; font-size:14px; background:var(--paper);">
+              <option value="employee">Employee</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="login-error" id="admin-new-error"></div>
+          <div class="login-error" id="admin-new-success" style="color:var(--admin);"></div>
+          <button class="btn-primary" onclick="createAdminUser()">➕ Account তৈরি করুন</button>
+
+          <div class="section-label" style="margin-top:22px;">সবার তালিকা ও Usage</div>
+          <div id="admin-users-list"><div class="empty-state">লোড হচ্ছে…</div></div>
+        </div>
+        <div class="bottom-nav">
+          <button onclick="goto('view-home')"><span class="ic">🏠</span>Home</button>
+          <button onclick="goto('view-meetings')"><span class="ic">🗂️</span>Meetings</button>
+          <button onclick="goto('view-history')"><span class="ic">📂</span>History</button>
+          <button onclick="goto('view-settings')"><span class="ic">⚙️</span>Settings</button>
+          <button class="admin-tab on" onclick="goto('view-admin')"><span class="ic">🛡️</span>Admin</button>
         </div>
       </div>
 
@@ -932,38 +982,76 @@ const DEFAULT_PRESETS = [
   {id:'d6', name:'Professional MOM', prompt:'এই transcript থেকে একটি formal Minutes of Meeting (MOM) তৈরি করো — attendees, agenda, discussion, decisions এবং action items আলাদা section-এ।'},
 ];
 
-/* ================= Login (single user, no admin role) ================= */
-let currentPassword = '123456'; // demo default — changeable from Settings
-const DEMO_USER_ID = 'demo';
+/* ================= Login (Firebase Authentication) ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyAgKiLRG_dNUn6ooHKm9qFUpr5owle4Vq0",
+  authDomain: "voicewrite-ai-bd258.firebaseapp.com",
+  projectId: "voicewrite-ai-bd258",
+  storageBucket: "voicewrite-ai-bd258.firebasestorage.app",
+  messagingSenderId: "261280615104",
+  appId: "1:261280615104:web:cd88553d79e9e73eeefb25",
+  measurementId: "G-H96XH7RB7H"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
 
 function prefillLogin(){
-  document.getElementById('login-id').value = DEMO_USER_ID;
-  document.getElementById('login-pass').value = currentPassword;
+  document.getElementById('login-id').value = '';
+  document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
 }
 
-function doLogin(){
-  const id = document.getElementById('login-id').value.trim();
+async function doLogin(){
+  const email = document.getElementById('login-id').value.trim();
   const pass = document.getElementById('login-pass').value;
-  if(id !== DEMO_USER_ID || pass !== currentPassword){
-    document.getElementById('login-error').style.display = 'block';
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if(!email || !pass){
+    errEl.textContent = 'Email এবং Password দিন।';
+    errEl.style.display = 'block';
     return;
   }
-  currentUser = {id};
-  document.getElementById('login-error').style.display = 'none';
-  document.getElementById('settings-username').textContent = id;
-  buildPresetRow();
-  goto('view-home');
-  loadHistory();
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'লগইন হচ্ছে…';
+  try{
+    const cred = await fbAuth.signInWithEmailAndPassword(email, pass);
+    const uid = cred.user.uid;
+    const userDoc = await fbDb.collection('users').doc(uid).get();
+    const profile = userDoc.exists ? userDoc.data() : {};
+    if(profile.active === false){
+      await fbAuth.signOut();
+      errEl.textContent = 'আপনার account সাময়িকভাবে বন্ধ করা আছে — administrator-এর সাথে যোগাযোগ করুন।';
+      errEl.style.display = 'block';
+      return;
+    }
+    currentUser = { uid, email: cred.user.email, name: profile.name || '', role: profile.role || 'employee' };
+    document.getElementById('settings-username').textContent = profile.name || cred.user.email;
+    document.querySelectorAll('.admin-tab').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
+    buildPresetRow();
+    goto('view-home');
+    loadHistory();
+  }catch(err){
+    errEl.textContent = 'ভুল Email অথবা Password।';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'লগইন করুন';
 }
 
-function doLogout(){
+async function doLogout(){
+  await fbAuth.signOut().catch(()=>{});
   currentUser = null;
   goto('view-login');
   prefillLogin();
 }
 
-function changePassword(){
+async function getAuthHeader(){
+  if(!fbAuth.currentUser) return {};
+  const token = await fbAuth.currentUser.getIdToken();
+  return { 'Authorization': `Bearer ${token}` };
+}
+
+async function changePassword(){
   const cur = document.getElementById('pw-current').value;
   const next = document.getElementById('pw-new').value;
   const confirm = document.getElementById('pw-confirm').value;
@@ -972,13 +1060,8 @@ function changePassword(){
   errEl.textContent = ''; errEl.style.display = 'none';
   okEl.textContent = ''; okEl.style.display = 'none';
 
-  if(cur !== currentPassword){
-    errEl.textContent = 'বর্তমান Password ভুল।';
-    errEl.style.display = 'block';
-    return;
-  }
-  if(!next || next.length < 4){
-    errEl.textContent = 'নতুন Password কমপক্ষে ৪ অক্ষরের হতে হবে।';
+  if(!next || next.length < 6){
+    errEl.textContent = 'নতুন Password কমপক্ষে ৬ অক্ষরের হতে হবে।';
     errEl.style.display = 'block';
     return;
   }
@@ -987,28 +1070,148 @@ function changePassword(){
     errEl.style.display = 'block';
     return;
   }
-  currentPassword = next;
-  document.getElementById('pw-current').value = '';
-  document.getElementById('pw-new').value = '';
-  document.getElementById('pw-confirm').value = '';
-  okEl.textContent = 'Password সফলভাবে পরিবর্তন হয়েছে ✓';
-  okEl.style.display = 'block';
+  try{
+    const cred = firebase.auth.EmailAuthProvider.credential(fbAuth.currentUser.email, cur);
+    await fbAuth.currentUser.reauthenticateWithCredential(cred);
+    await fbAuth.currentUser.updatePassword(next);
+    document.getElementById('pw-current').value = '';
+    document.getElementById('pw-new').value = '';
+    document.getElementById('pw-confirm').value = '';
+    okEl.textContent = 'Password সফলভাবে পরিবর্তন হয়েছে ✓';
+    okEl.style.display = 'block';
+  }catch(err){
+    errEl.textContent = 'বর্তমান Password ভুল, অথবা পরিবর্তন করা যায়নি।';
+    errEl.style.display = 'block';
+  }
 }
 
 
+
+/* ================= Admin Panel ================= */
+async function loadAdminUsers(){
+  const list = document.getElementById('admin-users-list');
+  list.innerHTML = '<div class="empty-state">লোড হচ্ছে…</div>';
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers: await getAuthHeader() });
+    if(!res.ok) throw new Error('failed ' + res.status);
+    const data = await res.json();
+    renderAdminUsers(data.users || []);
+  }catch(err){
+    list.innerHTML = '<div class="empty-state">User list আনা যায়নি — backend/permission সমস্যা থাকতে পারে।</div>';
+  }
+}
+
+function renderAdminUsers(users){
+  const list = document.getElementById('admin-users-list');
+  if(!users.length){
+    list.innerHTML = '<div class="empty-state">এখনো কোনো account তৈরি হয়নি।</div>';
+    return;
+  }
+  list.innerHTML = '';
+  users.forEach(u=>{
+    const usage = u.usage || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'history-item';
+    wrap.style.cursor = 'default';
+    wrap.innerHTML = `
+      <div class="h-top">
+        <span class="h-mode">${escapeHTML(u.name || u.email)}</span>
+        <span class="h-date">${u.role === 'admin' ? '🛡️ Admin' : 'Employee'} ${u.active === false ? '· 🔴 Suspended' : ''}</span>
+      </div>
+      <div class="h-preview">${escapeHTML(u.email)} · Convert-to-Text: ${usage.transcriptions||0} · AI Writing: ${usage.aiWrites||0}</div>
+      <div class="result-actions" style="margin-top:8px;">
+        <button onclick="toggleUserActive('${u.uid}', ${u.active === false})">${u.active === false ? '✅ Activate' : '⛔ Suspend'}</button>
+        <button onclick="resetUserPasswordAction('${u.uid}')">🔑 Reset Password</button>
+        <button onclick="deleteAdminUserConfirm('${u.uid}', '${escapeHTML(u.email)}')">🗑️ Delete</button>
+      </div>
+    `;
+    list.appendChild(wrap);
+  });
+}
+
+async function createAdminUser(){
+  const name = document.getElementById('admin-new-name').value.trim();
+  const email = document.getElementById('admin-new-email').value.trim();
+  const password = document.getElementById('admin-new-password').value;
+  const role = document.getElementById('admin-new-role').value;
+  const errEl = document.getElementById('admin-new-error');
+  const okEl = document.getElementById('admin-new-success');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+
+  if(!email || !password){
+    errEl.textContent = 'Email ও Password আবশ্যক।';
+    errEl.style.display = 'block';
+    return;
+  }
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/admin/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ email, password, name, role })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'ব্যর্থ হয়েছে');
+    okEl.textContent = `✓ Account তৈরি হয়েছে — ${email}`;
+    okEl.style.display = 'block';
+    document.getElementById('admin-new-name').value = '';
+    document.getElementById('admin-new-email').value = '';
+    document.getElementById('admin-new-password').value = '';
+    loadAdminUsers();
+  }catch(err){
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function toggleUserActive(uid, makeActive){
+  try{
+    await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ active: makeActive })
+    });
+    loadAdminUsers();
+  }catch(err){
+    alert('আপডেট ব্যর্থ হয়েছে।');
+  }
+}
+
+async function deleteAdminUserConfirm(uid, email){
+  if(!confirm(`${email}-এর account স্থায়ীভাবে মুছে ফেলবেন?`)) return;
+  try{
+    await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, { method: 'DELETE', headers: await getAuthHeader() });
+    loadAdminUsers();
+  }catch(err){
+    alert('Delete ব্যর্থ হয়েছে।');
+  }
+}
+
+async function resetUserPasswordAction(uid){
+  try{
+    const res = await fetch(`${BACKEND_URL}/api/admin/users/${uid}/reset-password`, {
+      method: 'POST', headers: await getAuthHeader()
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'ব্যর্থ হয়েছে');
+    prompt('এই reset link-টা কপি করে ওই employee-কে পাঠান (email দিয়ে):', data.resetLink);
+  }catch(err){
+    alert('Reset link তৈরি করা যায়নি।');
+  }
+}
 
 /* ================= Navigation ================= */
 function goto(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   // sync bottom nav highlight for shared nav bars (home/meetings/history/settings appear in several views)
-  const navMap = { 'view-home':0, 'view-mode':0, 'view-meetings':1, 'view-result':2, 'view-history':2, 'view-settings':3 };
+  const navMap = { 'view-home':0, 'view-mode':0, 'view-meetings':1, 'view-result':2, 'view-history':2, 'view-settings':3, 'view-admin':4 };
   const activeIdx = navMap[id];
   document.querySelectorAll(`.view#${id} .bottom-nav`).forEach(nav=>{
     nav.querySelectorAll('button').forEach((b,i)=> b.classList.toggle('on', i===activeIdx));
   });
   if(id==='view-meetings') loadMeetings();
   if(id==='view-history') loadHistory();
+  if(id==='view-admin') loadAdminUsers();
 }
 
 /* ================= Voice Recording (single audio stream — no live preview) ================= */
@@ -1270,7 +1473,7 @@ async function runAI(){
   try{
     const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
       body: JSON.stringify({
         transcript: transcriptText || '(কোনো transcript পাওয়া যায়নি)',
         mode: 'custom',
@@ -1442,7 +1645,7 @@ async function convertMeetingToText(id){
     // STT call supports it — harmless extra field if the backend doesn't
     // use it yet.
     formData.append('enableSpeakerDiarization', 'true');
-    const res = await fetch(`${BACKEND_URL}/api/transcribe`, { method:'POST', body: formData });
+    const res = await fetch(`${BACKEND_URL}/api/transcribe`, { method:'POST', headers: await getAuthHeader(), body: formData });
     if(!res.ok) throw new Error('backend error ' + res.status);
     const data = await res.json();
     const text = (data.transcript || '').trim();
@@ -1554,7 +1757,7 @@ async function refineMeetingTranscript(id){
   try{
     const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
       body: JSON.stringify({
         transcript: rec.transcript,
         mode: 'custom',
@@ -1608,7 +1811,7 @@ async function learnerModeMeetingTranscript(id){
   try{
     const response = await fetch(`${BACKEND_URL}/api/ai-write`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeader()) },
       body: JSON.stringify({
         transcript: rec.transcript,
         mode: 'custom',
