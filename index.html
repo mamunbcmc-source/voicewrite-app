@@ -263,6 +263,17 @@
     padding:10px 12px;
   }
   .login-error{color:var(--record); font-size:13px; margin-top:8px; display:none; font-weight:600;}
+  .login-link{
+    text-align:right;
+    font-size:12.5px;
+    color:var(--accent-deep);
+    font-weight:600;
+    cursor:pointer;
+    margin-top:8px;
+    text-decoration:underline;
+  }
+  .login-link:active{opacity:0.7;}
+  .login-feedback{font-size:12.5px; margin-top:8px; display:none; font-weight:600; line-height:1.5;}
 
   /* ---------- Home / recording ---------- */
   .lang-toggle{
@@ -615,8 +626,10 @@
             <label>Password</label>
             <input id="login-pass" type="password" name="vw-pwd-field" placeholder="••••••••" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
+          <div class="login-link" id="forgot-link" onclick="doForgotPassword()">পাসওয়ার্ড ভুলে গেছেন?</div>
           <button class="btn-primary" id="login-btn" onclick="doLogin()">লগইন করুন</button>
           <div class="login-error" id="login-error">ভুল Email অথবা Password।</div>
+          <div class="login-feedback" id="forgot-feedback"></div>
           <div class="login-hint">Account না থাকলে আপনার office administrator-এর সাথে যোগাযোগ করুন।</div>
         </div>
       </div>
@@ -1000,6 +1013,8 @@ function prefillLogin(){
   document.getElementById('login-id').value = '';
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
+  const fbEl = document.getElementById('forgot-feedback');
+  if(fbEl){ fbEl.style.display = 'none'; fbEl.textContent = ''; }
 }
 
 async function doLogin(){
@@ -1036,6 +1051,40 @@ async function doLogin(){
     errEl.style.display = 'block';
   }
   btn.disabled = false; btn.textContent = 'লগইন করুন';
+}
+
+async function doForgotPassword(){
+  const email = document.getElementById('login-id').value.trim();
+  const errEl = document.getElementById('login-error');
+  const fbEl = document.getElementById('forgot-feedback');
+  errEl.style.display = 'none';
+  fbEl.style.display = 'none';
+  if(!email){
+    fbEl.textContent = 'প্রথমে উপরে আপনার Email লিখুন, তারপর "পাসওয়ার্ড ভুলে গেছেন?"-এ চাপুন।';
+    fbEl.style.color = 'var(--record)';
+    fbEl.style.display = 'block';
+    return;
+  }
+  const link = document.getElementById('forgot-link');
+  const originalText = link.textContent;
+  link.textContent = 'পাঠানো হচ্ছে…';
+  try{
+    await fbAuth.sendPasswordResetEmail(email);
+    fbEl.textContent = `✓ ${email} ঠিকানায় একটি Password Reset ইমেইল পাঠানো হয়েছে। ইনবক্স (এবং Spam ফোল্ডার) চেক করুন।`;
+    fbEl.style.color = 'var(--admin)';
+    fbEl.style.display = 'block';
+  }catch(err){
+    if(err.code === 'auth/invalid-email'){
+      fbEl.textContent = 'সঠিক একটি Email address লিখুন।';
+    }else if(err.code === 'auth/user-not-found'){
+      fbEl.textContent = 'এই Email দিয়ে কোনো account খুঁজে পাওয়া যায়নি।';
+    }else{
+      fbEl.textContent = 'ইমেইল পাঠাতে সমস্যা হয়েছে। একটু পর আবার চেষ্টা করুন।';
+    }
+    fbEl.style.color = 'var(--record)';
+    fbEl.style.display = 'block';
+  }
+  link.textContent = originalText;
 }
 
 async function doLogout(){
