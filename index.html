@@ -645,6 +645,7 @@
           <div class="history-item" style="cursor:default;">
             <div class="h-preview">🎙️ Record চাপুন → পুরো মিটিং শেষ না হওয়া পর্যন্ত চালিয়ে যান → ⏹ Stop চাপলেই রেকর্ডিং "🗂️ Meetings" তালিকায় সংরক্ষণ হয়ে যাবে। সেখান থেকে যেকোনো সময় "📝 Convert to Text" চাপুন — Bangla/English/mixed speech থেকে transcript তৈরি হবে।</div>
           </div>
+          <div class="lang-note">⏱️ দীর্ঘ মিটিং (~২+ ঘণ্টা)-এর জন্য: মাঝে একবার ⏹ Stop চেপে, তারপর আবার 🎙️ Record চেপে নতুন অংশ শুরু করুন — এতে "Meeting #১", "#২" আলাদা হয়ে যাবে, আর প্রতিটা আলাদাভাবে ঠিকমতো Convert to Text হবে।</div>
           <button class="btn-primary" style="margin-top:14px;" onclick="goto('view-meetings')">🗂️ Recorded Meetings দেখুন →</button>
         </div>
         <div class="bottom-nav">
@@ -1629,6 +1630,15 @@ function toggleMeetingExpand(id){
 }
 
 async function convertMeetingToText(id){
+  const preCheck = await dbGetAllRecordings();
+  const recForCheck = preCheck.find(r=>r.id===id);
+  const MAX_CONVERT_BYTES = 24 * 1024 * 1024;
+  if(recForCheck && recForCheck.audioBlob && recForCheck.audioBlob.size > MAX_CONVERT_BYTES){
+    const sizeMb = (recForCheck.audioBlob.size / (1024*1024)).toFixed(1);
+    alert(`এই recording-টা ${sizeMb} MB — একবারে Convert করার সীমা (২৪ MB)-এর বেশি। মিটিংটা কয়েকটা ছোট অংশে ভাগ করে (Stop করে আবার নতুন Recording শুরু করে) প্রতিটা আলাদা Convert করুন।`);
+    return;
+  }
+
   await dbUpdateRecording(id, { transcribing: true });
   expandedMeetingId = id;
   await loadMeetings();
