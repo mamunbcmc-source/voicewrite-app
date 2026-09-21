@@ -1666,13 +1666,13 @@ async function convertMeetingToText(id){
       transcript: text || '(কোনো কথা শনাক্ত করা যায়নি — audio আবার চেষ্টা করুন অথবা স্পষ্ট করে বলা আছে কিনা দেখুন।)'
     });
   }catch(err){
-    // Most likely cause right now: Google Cloud billing isn't enabled yet
-    // on the backend, so the STT call fails.
+    // Show the ACTUAL error so we can diagnose what's really wrong,
+    // instead of a guessed/generic message.
     await dbUpdateRecording(id, {
       transcribing: false,
       transcript: null
     });
-    alert('Text-এ convert করা যায়নি। এর প্রধান কারণ হতে পারে Google Cloud billing এখনো সম্পূর্ণ enable না থাকা backend-এ। পরে আবার চেষ্টা করুন।');
+    alert('Text-এ convert করা যায়নি।\n\nবিস্তারিত কারণ: ' + err.message);
   }
   await loadMeetings();
 }
