@@ -1658,7 +1658,11 @@ async function convertMeetingToText(id){
     // use it yet.
     formData.append('enableSpeakerDiarization', 'true');
     const res = await fetch(`${BACKEND_URL}/api/transcribe`, { method:'POST', headers: await getAuthHeader(), body: formData });
-    if(!res.ok) throw new Error('backend error ' + res.status);
+    if(!res.ok){
+      let detail = '';
+      try{ const errBody = await res.json(); detail = errBody.detail || errBody.error || ''; }catch(e){}
+      throw new Error('backend error ' + res.status + (detail ? (' — ' + detail) : ''));
+    }
     const data = await res.json();
     const text = (data.transcript || '').trim();
     await dbUpdateRecording(id, {
