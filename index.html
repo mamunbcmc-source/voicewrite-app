@@ -1483,11 +1483,15 @@ async function runAI(){
         customInstruction: fullPrompt
       })
     });
-    if(!response.ok) throw new Error('backend error ' + response.status);
+    if(!response.ok){
+      let detail = '';
+      try{ const errBody = await response.json(); detail = errBody.detail || errBody.error || ''; }catch(e){}
+      throw new Error('backend error ' + response.status + (detail ? (' — ' + detail) : ''));
+    }
     const data = await response.json();
     document.getElementById('result-text').value = (data.result || '').trim() || 'AI থেকে কোনো ফলাফল পাওয়া যায়নি।';
   }catch(err){
-    document.getElementById('result-text').value = 'AI processing ব্যর্থ হয়েছে — backend-এ ANTHROPIC_API_KEY বসানো আছে কিনা, বা server ঘুমিয়ে আছে কিনা (৩০-৫০ সেকেন্ড পর আবার চেষ্টা করুন) দেখুন। বিস্তারিত: ' + err.message;
+    document.getElementById('result-text').value = 'AI processing ব্যর্থ হয়েছে — backend-এ GROQ_API_KEY বসানো আছে কিনা, বা server ঘুমিয়ে আছে কিনা (৩০-৫০ সেকেন্ড পর আবার চেষ্টা করুন) দেখুন। বিস্তারিত: ' + err.message;
   }
   document.getElementById('ai-loading').style.display = 'none';
   document.getElementById('result-content').style.display = 'block';
