@@ -1279,6 +1279,7 @@ async function startRecording(){
   // chunk only at stop — helps on some Android WebViews where a single huge
   // chunk can end up empty/corrupt.
   mediaRecorder.start(250);
+  acquireWakeLock();
 
   isRecording = true; isPaused = false;
   document.getElementById('mic-btn').classList.add('recording');
@@ -1295,10 +1296,32 @@ async function startRecording(){
   }, 1000);
 }
 
+// Keep the screen awake while a meeting is being recorded. When the phone
+// screen locks, Android suspends the browser page and the recording stops;
+// the Screen Wake Lock API prevents the automatic screen timeout. (It can't
+// stop a manual lock via the power button.)
+let wakeLockSentinel = null;
+async function acquireWakeLock(){
+  try{
+    if('wakeLock' in navigator && !wakeLockSentinel){
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+      wakeLockSentinel.addEventListener('release', ()=>{ wakeLockSentinel = null; });
+    }
+  }catch(e){ /* unsupported or denied — recording still works, screen may time out */ }
+}
+function releaseWakeLock(){
+  if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
+}
+// The browser drops the lock when the tab is hidden; take it again on return.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && isRecording && !isPaused) acquireWakeLock();
+});
+
 function pauseRecording(){
   if(!isRecording) return;
   isPaused = true;
   if(mediaRecorder && mediaRecorder.state==='recording'){ try{ mediaRecorder.pause(); }catch(e){} }
+  releaseWakeLock();
   clearInterval(timerInterval);
   document.getElementById('mic-btn').classList.remove('recording');
   document.getElementById('mic-status').textContent = 'Pause করা হয়েছে';
@@ -1310,6 +1333,7 @@ function resumeRecording(){
   if(!isRecording) return;
   isPaused = false;
   if(mediaRecorder && mediaRecorder.state==='paused'){ try{ mediaRecorder.resume(); }catch(e){} }
+  acquireWakeLock();
   timerInterval = setInterval(()=>{
     timerSeconds++;
     const m = String(Math.floor(timerSeconds/60)).padStart(2,'0');
@@ -1325,6 +1349,7 @@ function resumeRecording(){
 function stopRecording(){
   isRecording = false; isPaused = false;
   if(mediaRecorder && mediaRecorder.state!=='inactive'){ try{ mediaRecorder.stop(); }catch(e){} }
+  releaseWakeLock();
   clearInterval(timerInterval);
   document.getElementById('mic-btn').classList.remove('recording');
   document.getElementById('live-tag').style.display = 'none';
