@@ -1258,7 +1258,7 @@ async function startRecording(){
   timerSeconds = 0;
   document.getElementById('mic-timer').textContent = '00:00';
   try{
-    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 48000 });
   }catch(e){
     stream.getTracks().forEach(t=>t.stop());
     document.getElementById('mic-status').textContent = 'রেকর্ডিং শুরু করা যায়নি।';
@@ -1661,10 +1661,10 @@ function toggleMeetingExpand(id){
 async function convertMeetingToText(id){
   const preCheck = await dbGetAllRecordings();
   const recForCheck = preCheck.find(r=>r.id===id);
-  const MAX_CONVERT_BYTES = 24 * 1024 * 1024;
+  const MAX_CONVERT_BYTES = 500 * 1024 * 1024;
   if(recForCheck && recForCheck.audioBlob && recForCheck.audioBlob.size > MAX_CONVERT_BYTES){
     const sizeMb = (recForCheck.audioBlob.size / (1024*1024)).toFixed(1);
-    alert(`এই recording-টা ${sizeMb} MB — একবারে Convert করার সীমা (২৪ MB)-এর বেশি। মিটিংটা কয়েকটা ছোট অংশে ভাগ করে (Stop করে আবার নতুন Recording শুরু করে) প্রতিটা আলাদা Convert করুন।`);
+    alert(`এই recording-টা ${sizeMb} MB — একবারে Convert করার সীমা (৫০০ MB)-এর বেশি। মিটিংটা কয়েকটা অংশে ভাগ করে (Stop করে আবার নতুন Recording শুরু করে) প্রতিটা আলাদা Convert করুন।`);
     return;
   }
 
