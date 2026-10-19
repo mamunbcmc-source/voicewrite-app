@@ -1016,7 +1016,18 @@ async function doLogin(){
   const btn = document.getElementById('login-btn');
   btn.disabled = true; btn.textContent = 'লগইন হচ্ছে…';
   try{
-    const cred = await fbAuth.signInWithEmailAndPassword(email, pass);
+    let cred;
+    try{
+      cred = await fbAuth.signInWithEmailAndPassword(email, pass);
+    }catch(e1){
+      // Phone keyboards often add a trailing space — retry once without it.
+      const bad = ['auth/invalid-credential','auth/wrong-password','auth/invalid-login-credentials'];
+      if(bad.includes(e1.code) && pass.trim() !== pass && pass.trim()){
+        cred = await fbAuth.signInWithEmailAndPassword(email, pass.trim());
+      }else{
+        throw e1;
+      }
+    }
     const uid = cred.user.uid;
     const userDoc = await fbDb.collection('users').doc(uid).get();
     const profile = userDoc.exists ? userDoc.data() : {};
@@ -1033,7 +1044,21 @@ async function doLogin(){
     goto('view-home');
     loadHistory();
   }catch(err){
-    errEl.textContent = 'ভুল Email অথবা Password।';
+    console.error('Login error:', err);
+    const code = (err && err.code) || '';
+    let msg;
+    if(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email','auth/invalid-login-credentials'].includes(code)){
+      msg = 'ভুল Email অথবা Password।';
+    }else if(code === 'auth/too-many-requests'){
+      msg = 'অনেকবার ভুল চেষ্টা হয়েছে — কিছুক্ষণ পরে আবার চেষ্টা করুন।';
+    }else if(code === 'auth/network-request-failed'){
+      msg = 'Internet সংযোগ নেই — সংযোগ দেখে আবার চেষ্টা করুন।';
+    }else if(code === 'auth/user-disabled'){
+      msg = 'এই account বন্ধ করা আছে — administrator-এর সাথে যোগাযোগ করুন।';
+    }else{
+      msg = 'লগইন সম্পূর্ণ হয়নি: ' + (code || (err && err.message) || 'অজানা সমস্যা');
+    }
+    errEl.textContent = msg;
     errEl.style.display = 'block';
   }
   btn.disabled = false; btn.textContent = 'লগইন করুন';
@@ -1135,7 +1160,7 @@ function renderAdminUsers(users){
 async function createAdminUser(){
   const name = document.getElementById('admin-new-name').value.trim();
   const email = document.getElementById('admin-new-email').value.trim();
-  const password = document.getElementById('admin-new-password').value;
+  const password = document.getElementById('admin-new-password').value.trim();
   const role = document.getElementById('admin-new-role').value;
   const errEl = document.getElementById('admin-new-error');
   const okEl = document.getElementById('admin-new-success');
