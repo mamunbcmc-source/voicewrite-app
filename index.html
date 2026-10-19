@@ -1138,6 +1138,7 @@ function renderAdminUsers(users){
   list.innerHTML = '';
   users.forEach(u=>{
     const usage = u.usage || {};
+    const isSelf = !!(currentUser && currentUser.uid === u.uid);
     const wrap = document.createElement('div');
     wrap.className = 'history-item';
     wrap.style.cursor = 'default';
@@ -1147,12 +1148,47 @@ function renderAdminUsers(users){
         <span class="h-date">${u.role === 'admin' ? '🛡️ Admin' : 'Employee'} ${u.active === false ? '· 🔴 Suspended' : ''}</span>
       </div>
       <div class="h-preview">${escapeHTML(u.email)} · Convert-to-Text: ${usage.transcriptions||0} · AI Writing: ${usage.aiWrites||0}</div>
-      <div class="result-actions" style="margin-top:8px;">
-        <button onclick="toggleUserActive('${u.uid}', ${u.active === false})">${u.active === false ? '✅ Activate' : '⛔ Suspend'}</button>
-        <button onclick="resetUserPasswordAction('${u.uid}')">🔑 Reset Password</button>
-        <button onclick="deleteAdminUserConfirm('${u.uid}', '${escapeHTML(u.email)}')">🗑️ Delete</button>
+      <div class="result-actions" style="margin-top:8px; flex-wrap:wrap;">
+        <button style="flex:1 1 45%;" onclick="toggleAdminPanelBox('${u.uid}','profile')">✏️ নাম / Email / Role</button>
+        <button style="flex:1 1 45%;" onclick="toggleAdminPanelBox('${u.uid}','pass')">🔑 নতুন Password দিন</button>
+        ${isSelf ? '' : `<button style="flex:1 1 30%;" onclick="toggleUserActive('${u.uid}', ${u.active === false})">${u.active === false ? '✅ Activate' : '⛔ Suspend'}</button>`}
+        <button style="flex:1 1 30%;" onclick="resetUserPasswordAction('${u.uid}')">🔗 Reset Link</button>
+        ${isSelf ? '' : `<button style="flex:1 1 30%;" class="del-btn">🗑️ Delete</button>`}
+      </div>
+      <div class="admin-box" id="box-profile-${u.uid}" style="display:none; margin-top:12px;">
+        <div class="field"><label>নাম</label><input class="ab-name" type="text"></div>
+        <div class="field"><label>Email</label><input class="ab-email" type="email" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="field"><label>Role</label>
+          <select class="ab-role" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); font-family:inherit; font-size:14px; background:var(--paper);">
+            <option value="employee">Employee</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="login-error ab-err"></div>
+        <div class="result-actions">
+          <button class="save" onclick="saveUserProfile('${u.uid}')">💾 Save</button>
+          <button onclick="toggleAdminPanelBox('${u.uid}','profile')">বাতিল</button>
+        </div>
+      </div>
+      <div class="admin-box" id="box-pass-${u.uid}" style="display:none; margin-top:12px;">
+        <div class="field"><label>নতুন Password (কমপক্ষে ৬ অক্ষর)</label><input class="ab-pass" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="login-error ab-err"></div>
+        <div class="result-actions">
+          <button class="save" onclick="saveUserPassword('${u.uid}')">💾 Password বদলান</button>
+          <button onclick="toggleAdminPanelBox('${u.uid}','pass')">বাতিল</button>
+        </div>
       </div>
     `;
+    // Fill values via JS (not into the HTML string) so names/emails with
+    // quotes or special characters can never break the form.
+    const pb = wrap.querySelector('#box-profile-' + u.uid);
+    pb.querySelector('.ab-name').value = u.name || '';
+    pb.querySelector('.ab-email').value = u.email || '';
+    const roleSel = pb.querySelector('.ab-role');
+    roleSel.value = u.role === 'admin' ? 'admin' : 'employee';
+    if(isSelf){ roleSel.disabled = true; } // can't demote yourself
+    const delBtn = wrap.querySelector('.del-btn');
+    if(delBtn) delBtn.onclick = () => deleteAdminUserConfirm(u.uid, u.email);
     list.appendChild(wrap);
   });
 }
@@ -1191,26 +1227,91 @@ async function createAdminUser(){
   }
 }
 
+// Send a PATCH to the backend; returns on success, throws Error(message) on failure.
+async function adminPatch(uid, body){
+  const res = await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify(body)
+  });
+  let data = {};
+  try{ data = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error(data.error || 'আপডেট ব্যর্থ হয়েছে।');
+  return data;
+}
+
 async function toggleUserActive(uid, makeActive){
   try{
-    await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-      body: JSON.stringify({ active: makeActive })
-    });
+    await adminPatch(uid, { active: makeActive });
     loadAdminUsers();
   }catch(err){
-    alert('আপডেট ব্যর্থ হয়েছে।');
+    alert(err.message || 'আপডেট ব্যর্থ হয়েছে।');
+  }
+}
+
+function toggleAdminPanelBox(uid, which){
+  const box = document.getElementById('box-' + which + '-' + uid);
+  if(!box) return;
+  const open = box.style.display === 'none';
+  // close the other box of the same user so only one is open at a time
+  const other = document.getElementById('box-' + (which === 'pass' ? 'profile' : 'pass') + '-' + uid);
+  if(other) other.style.display = 'none';
+  box.style.display = open ? 'block' : 'none';
+  const err = box.querySelector('.ab-err'); if(err) err.style.display = 'none';
+}
+
+async function saveUserProfile(uid){
+  const box = document.getElementById('box-profile-' + uid);
+  const errEl = box.querySelector('.ab-err');
+  errEl.style.display = 'none';
+  const name = box.querySelector('.ab-name').value.trim();
+  const email = box.querySelector('.ab-email').value.trim();
+  const roleSel = box.querySelector('.ab-role');
+  if(!email){
+    errEl.textContent = 'Email খালি রাখা যাবে না।';
+    errEl.style.display = 'block';
+    return;
+  }
+  const body = { name, email };
+  if(!roleSel.disabled) body.role = roleSel.value;
+  try{
+    await adminPatch(uid, body);
+    loadAdminUsers();
+  }catch(err){
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function saveUserPassword(uid){
+  const box = document.getElementById('box-pass-' + uid);
+  const errEl = box.querySelector('.ab-err');
+  errEl.style.display = 'none';
+  const password = box.querySelector('.ab-pass').value.trim();
+  if(password.length < 6){
+    errEl.textContent = 'Password অন্তত ৬ অক্ষরের হতে হবে।';
+    errEl.style.display = 'block';
+    return;
+  }
+  try{
+    await adminPatch(uid, { password });
+    box.querySelector('.ab-pass').value = '';
+    box.style.display = 'none';
+    alert('✓ Password বদলে গেছে। নতুন password দিয়ে এখনই login করা যাবে।');
+  }catch(err){
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
   }
 }
 
 async function deleteAdminUserConfirm(uid, email){
   if(!confirm(`${email}-এর account স্থায়ীভাবে মুছে ফেলবেন?`)) return;
   try{
-    await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, { method: 'DELETE', headers: await getAuthHeader() });
+    const res = await fetch(`${BACKEND_URL}/api/admin/users/${uid}`, { method: 'DELETE', headers: await getAuthHeader() });
+    if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.error || 'Delete ব্যর্থ হয়েছে।'); }
     loadAdminUsers();
   }catch(err){
-    alert('Delete ব্যর্থ হয়েছে।');
+    alert(err.message || 'Delete ব্যর্থ হয়েছে।');
   }
 }
 
