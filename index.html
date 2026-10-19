@@ -576,6 +576,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+<div id="offline-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#8a5a00; color:#fff; font-size:12.5px; line-height:1.4; text-align:center; padding:7px 10px; font-family:inherit;">📴 Internet নেই — Recording চলবে (ফোনে সেভ থাকবে)। Convert to Text ও AI-এর জন্য internet লাগবে।</div>
 
 <div class="stage">
 
@@ -993,9 +994,46 @@ const firebaseConfig = {
   appId: "1:261280615104:web:cd88553d79e9e73eeefb25",
   measurementId: "G-H96XH7RB7H"
 };
-firebase.initializeApp(firebaseConfig);
-const fbAuth = firebase.auth();
-const fbDb = firebase.firestore();
+// Guarded: if the Firebase scripts could not load (offline and never saved),
+// the app must still open and record — only login/server features are skipped.
+let fbAuth = null, fbDb = null;
+try{
+  if(typeof firebase !== 'undefined'){
+    firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+  }
+}catch(e){ console.error('Firebase init failed:', e); }
+
+// ---- Remember the signed-in person on this phone (works with no internet) ----
+const SESSION_KEY = 'vw_session_profile';
+function saveSessionProfile(uid, email, profile){
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify({ uid, email, name: profile.name || '', role: profile.role || 'employee' })); }catch(e){}
+}
+function loadSessionProfile(){
+  try{ return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }catch(e){ return null; }
+}
+function clearSessionProfile(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+
+// Shows a message and returns true when there is no internet.
+function needInternet(what){
+  if(navigator.onLine === false){
+    alert('📶 Internet সংযোগ নেই।\n' + what + ' করতে internet লাগবে — সংযোগ পেলে আবার চেষ্টা করুন।\n\n(Recording internet ছাড়াই চলবে, আর ফোনে সেভ থাকবে।)');
+    return true;
+  }
+  return false;
+}
+
+function enterApp(uid, email, profile){
+  currentUser = { uid, email, name: profile.name || '', role: profile.role || 'employee' };
+  document.getElementById('settings-username').textContent = profile.name || displayId(email);
+  document.querySelectorAll('.admin-tab').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
+  buildPresetRow();
+  goto('view-home');
+  loadHistory();
+}
 
 // ---- User ID login ----
 // Firebase Authentication identifies people by email. To let employees sign in
@@ -1031,6 +1069,11 @@ async function doLogin(){
     return;
   }
   const btn = document.getElementById('login-btn');
+  if(!fbAuth){
+    errEl.textContent = 'Internet সংযোগ নেই — login করতে (শুধু প্রথমবার) internet লাগবে।';
+    errEl.style.display = 'block';
+    return;
+  }
   btn.disabled = true; btn.textContent = 'লগইন হচ্ছে…';
   try{
     let cred;
@@ -1054,12 +1097,8 @@ async function doLogin(){
       errEl.style.display = 'block';
       return;
     }
-    currentUser = { uid, email: cred.user.email, name: profile.name || '', role: profile.role || 'employee' };
-    document.getElementById('settings-username').textContent = profile.name || displayId(cred.user.email);
-    document.querySelectorAll('.admin-tab').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
-    buildPresetRow();
-    goto('view-home');
-    loadHistory();
+    saveSessionProfile(uid, cred.user.email, profile);
+    enterApp(uid, cred.user.email, profile);
   }catch(err){
     console.error('Login error:', err);
     const code = (err && err.code) || '';
@@ -1069,7 +1108,7 @@ async function doLogin(){
     }else if(code === 'auth/too-many-requests'){
       msg = 'অনেকবার ভুল চেষ্টা হয়েছে — কিছুক্ষণ পরে আবার চেষ্টা করুন।';
     }else if(code === 'auth/network-request-failed'){
-      msg = 'Internet সংযোগ নেই — সংযোগ দেখে আবার চেষ্টা করুন।';
+      msg = 'Internet সংযোগ নেই — login করতে (শুধু প্রথমবার) internet লাগবে।';
     }else if(code === 'auth/user-disabled'){
       msg = 'এই account বন্ধ করা আছে — administrator-এর সাথে যোগাযোগ করুন।';
     }else{
@@ -1082,14 +1121,15 @@ async function doLogin(){
 }
 
 async function doLogout(){
-  await fbAuth.signOut().catch(()=>{});
+  if(fbAuth) await fbAuth.signOut().catch(()=>{});
+  clearSessionProfile();
   currentUser = null;
   goto('view-login');
   prefillLogin();
 }
 
 async function getAuthHeader(){
-  if(!fbAuth.currentUser) return {};
+  if(!fbAuth || !fbAuth.currentUser) return {};
   // force refresh (true) — a cached token can go stale after ~1hr;
   // this guarantees the backend always gets a currently-valid one.
   const token = await fbAuth.currentUser.getIdToken(true);
@@ -1097,6 +1137,7 @@ async function getAuthHeader(){
 }
 
 async function changePassword(){
+  if(needInternet('Password বদলাতে')) return;
   const cur = document.getElementById('pw-current').value;
   const next = document.getElementById('pw-new').value;
   const confirm = document.getElementById('pw-confirm').value;
@@ -1135,6 +1176,10 @@ async function changePassword(){
 /* ================= Admin Panel ================= */
 async function loadAdminUsers(){
   const list = document.getElementById('admin-users-list');
+  if(navigator.onLine === false){
+    list.innerHTML = '<div class="empty-state">📶 Internet সংযোগ নেই — Admin Panel দেখতে internet লাগবে।</div>';
+    return;
+  }
   list.innerHTML = '<div class="empty-state">লোড হচ্ছে…</div>';
   try{
     const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers: await getAuthHeader() });
@@ -1211,6 +1256,7 @@ function renderAdminUsers(users){
 }
 
 async function createAdminUser(){
+  if(needInternet('নতুন account তৈরি')) return;
   const name = document.getElementById('admin-new-name').value.trim();
   const rawId = document.getElementById('admin-new-email').value.trim();
   const password = document.getElementById('admin-new-password').value.trim();
@@ -1634,6 +1680,7 @@ async function saveCurrentPreset(){
 
 /* ================= AI Processing (real Claude API call) ================= */
 async function runAI(){
+  if(needInternet('AI দিয়ে লেখা')) return;
   const customPrompt = document.getElementById('prompt-input').value.trim();
   if(!customPrompt){
     alert('অনুগ্রহ করে একটি instruction লিখুন অথবা একটি saved prompt বেছে নিন।');
@@ -1813,6 +1860,7 @@ function toggleMeetingExpand(id){
 }
 
 async function convertMeetingToText(id){
+  if(needInternet('Convert to Text')) return;
   const preCheck = await dbGetAllRecordings();
   const recForCheck = preCheck.find(r=>r.id===id);
   const MAX_CONVERT_BYTES = 500 * 1024 * 1024;
@@ -1946,6 +1994,7 @@ function handleAudioFileUpload(event){
   event.target.value = '';
 }
 async function refineMeetingTranscript(id){
+  if(needInternet('Refine')) return;
   await dbUpdateRecording(id, { refining: true });
   await loadMeetings();
 
@@ -1996,6 +2045,7 @@ async function downloadMeetingRefine(id){
 
 /* ---- Learner Mode: translation + pronunciation + key word meanings ---- */
 async function learnerModeMeetingTranscript(id){
+  if(needInternet('Learner Mode')) return;
   const select = document.getElementById(`learner-lang-select-${id}`);
   const targetCode = select ? select.value : 'en';
   const targetName = (TRANSLATE_LANGS.find(l=>l.code===targetCode)||{}).name || targetCode;
@@ -2257,9 +2307,85 @@ if('serviceWorker' in navigator){
   });
 }
 
+/* ================= Offline-friendly startup ================= */
+let offlineBannerTimer = null;
+function showOfflineBanner(){
+  const b = document.getElementById('offline-banner');
+  if(!b) return;
+  b.style.display = 'block';
+  clearTimeout(offlineBannerTimer);
+  offlineBannerTimer = setTimeout(()=>{ b.style.display = 'none'; }, 8000);
+}
+window.addEventListener('offline', showOfflineBanner);
+window.addEventListener('online', ()=>{
+  const b = document.getElementById('offline-banner');
+  if(b) b.style.display = 'none';
+  if(currentUser && fbAuth && fbAuth.currentUser) refreshProfileInBackground(fbAuth.currentUser);
+});
+
+// Re-check the server's copy of the profile (role, suspended?) — only when online.
+async function refreshProfileInBackground(user){
+  if(navigator.onLine === false || !fbDb) return;
+  try{
+    const snap = await Promise.race([
+      fbDb.collection('users').doc(user.uid).get(),
+      new Promise((_, rej)=> setTimeout(()=> rej(new Error('timeout')), 8000))
+    ]);
+    const profile = snap.exists ? snap.data() : {};
+    if(profile.active === false){
+      if(fbAuth) await fbAuth.signOut().catch(()=>{});
+      clearSessionProfile();
+      currentUser = null;
+      goto('view-login');
+      const errEl = document.getElementById('login-error');
+      errEl.textContent = 'আপনার account সাময়িকভাবে বন্ধ করা আছে — administrator-এর সাথে যোগাযোগ করুন।';
+      errEl.style.display = 'block';
+      return;
+    }
+    saveSessionProfile(user.uid, user.email, profile);
+    if(currentUser){
+      currentUser.name = profile.name || '';
+      currentUser.role = profile.role || 'employee';
+      document.getElementById('settings-username').textContent = currentUser.name || displayId(user.email);
+      document.querySelectorAll('.admin-tab').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
+    }
+  }catch(e){ /* offline or slow — keep the remembered profile */ }
+}
+
+// Open the app straight away if this phone has signed in before — even with no internet.
+async function restoreSession(){
+  const cached = loadSessionProfile();
+  if(!fbAuth){
+    // Firebase scripts unavailable (offline and never saved): use the remembered sign-in.
+    if(cached) enterApp(cached.uid, cached.email, cached);
+    return;
+  }
+  const result = await new Promise((resolve)=>{
+    let finished = false;
+    const timer = setTimeout(()=>{ if(!finished){ finished = true; resolve('timeout'); } }, 4000);
+    const off = fbAuth.onAuthStateChanged((u)=>{
+      if(finished) return;
+      finished = true; clearTimeout(timer);
+      if(typeof off === 'function') off();
+      resolve(u || null);
+    });
+  });
+  if(result === 'timeout'){
+    if(cached) enterApp(cached.uid, cached.email, cached);
+    return;
+  }
+  const user = result;
+  if(!user){ clearSessionProfile(); return; }   // signed out → login screen
+  const known = (cached && cached.uid === user.uid) ? cached : { name: user.displayName || '', role: 'employee' };
+  enterApp(user.uid, user.email, known);
+  refreshProfileInBackground(user);
+}
+
 /* init */
 prefillLogin();
 updateInstalledBadge();
+if(navigator.onLine === false) showOfflineBanner();
+restoreSession().catch(e => console.error('restoreSession failed:', e));
 </script>
 </body>
 </html>
