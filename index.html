@@ -608,15 +608,15 @@
           <div class="login-title">স্বাগতম 👋</div>
           <div class="login-sub">আপনার office account দিয়ে লগইন করুন</div>
           <div class="field">
-            <label>Email</label>
-            <input id="login-id" type="email" name="vw-uid-field" placeholder="you@company.com" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <label>User ID বা Email</label>
+            <input id="login-id" type="text" name="vw-uid-field" placeholder="User ID (নাম বা নম্বর) অথবা Email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <div class="field">
             <label>Password</label>
             <input id="login-pass" type="password" name="vw-pwd-field" placeholder="••••••••" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <button class="btn-primary" id="login-btn" onclick="doLogin()">লগইন করুন</button>
-          <div class="login-error" id="login-error">ভুল Email অথবা Password।</div>
+          <div class="login-error" id="login-error">ভুল User ID অথবা Password।</div>
           <div class="login-hint">Account না থাকলে আপনার office administrator-এর সাথে যোগাযোগ করুন।</div>
         </div>
       </div>
@@ -813,8 +813,8 @@
             <input id="admin-new-name" type="text" placeholder="নাম">
           </div>
           <div class="field">
-            <label>Email</label>
-            <input id="admin-new-email" type="email" placeholder="employee@company.com" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <label>User ID বা Email</label>
+            <input id="admin-new-email" type="text" placeholder="যেমন: walid অথবা 01712345678 (English অক্ষর/সংখ্যা)" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <div class="field">
             <label>Password</label>
@@ -997,6 +997,23 @@ firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
 
+// ---- User ID login ----
+// Firebase Authentication identifies people by email. To let employees sign in
+// with a simple User ID (a name like "walid" or a number like "01712345678"),
+// the ID is stored as a private, non-deliverable email: id@voicewrite.local.
+// Real email addresses (anything with an "@") keep working exactly as before.
+const ID_DOMAIN = '@voicewrite.local';
+function toLoginEmail(input){
+  const v = (input || '').trim();
+  if(!v) return '';
+  if(v.includes('@')) return v;
+  return v.replace(/\s+/g, '').toLowerCase() + ID_DOMAIN;
+}
+function isValidUserId(v){ return /^[A-Za-z0-9._-]{3,30}$/.test(v); }
+function displayId(email){
+  return (email && email.endsWith(ID_DOMAIN)) ? email.slice(0, -ID_DOMAIN.length) : (email || '');
+}
+
 function prefillLogin(){
   document.getElementById('login-id').value = '';
   document.getElementById('login-pass').value = '';
@@ -1004,12 +1021,12 @@ function prefillLogin(){
 }
 
 async function doLogin(){
-  const email = document.getElementById('login-id').value.trim();
+  const email = toLoginEmail(document.getElementById('login-id').value);
   const pass = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-error');
   errEl.style.display = 'none';
   if(!email || !pass){
-    errEl.textContent = 'Email এবং Password দিন।';
+    errEl.textContent = 'User ID (বা Email) এবং Password দিন।';
     errEl.style.display = 'block';
     return;
   }
@@ -1038,7 +1055,7 @@ async function doLogin(){
       return;
     }
     currentUser = { uid, email: cred.user.email, name: profile.name || '', role: profile.role || 'employee' };
-    document.getElementById('settings-username').textContent = profile.name || cred.user.email;
+    document.getElementById('settings-username').textContent = profile.name || displayId(cred.user.email);
     document.querySelectorAll('.admin-tab').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
     buildPresetRow();
     goto('view-home');
@@ -1048,7 +1065,7 @@ async function doLogin(){
     const code = (err && err.code) || '';
     let msg;
     if(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email','auth/invalid-login-credentials'].includes(code)){
-      msg = 'ভুল Email অথবা Password।';
+      msg = 'ভুল User ID অথবা Password।';
     }else if(code === 'auth/too-many-requests'){
       msg = 'অনেকবার ভুল চেষ্টা হয়েছে — কিছুক্ষণ পরে আবার চেষ্টা করুন।';
     }else if(code === 'auth/network-request-failed'){
@@ -1144,12 +1161,12 @@ function renderAdminUsers(users){
     wrap.style.cursor = 'default';
     wrap.innerHTML = `
       <div class="h-top">
-        <span class="h-mode">${escapeHTML(u.name || u.email)}</span>
+        <span class="h-mode">${escapeHTML(u.name || displayId(u.email))}</span>
         <span class="h-date">${u.role === 'admin' ? '🛡️ Admin' : 'Employee'} ${u.active === false ? '· 🔴 Suspended' : ''}</span>
       </div>
-      <div class="h-preview">${escapeHTML(u.email)} · Convert-to-Text: ${usage.transcriptions||0} · AI Writing: ${usage.aiWrites||0}</div>
+      <div class="h-preview">${escapeHTML(displayId(u.email))} · Convert-to-Text: ${usage.transcriptions||0} · AI Writing: ${usage.aiWrites||0}</div>
       <div class="result-actions" style="margin-top:8px; flex-wrap:wrap;">
-        <button style="flex:1 1 45%;" onclick="toggleAdminPanelBox('${u.uid}','profile')">✏️ নাম / Email / Role</button>
+        <button style="flex:1 1 45%;" onclick="toggleAdminPanelBox('${u.uid}','profile')">✏️ নাম / ID / Role</button>
         <button style="flex:1 1 45%;" onclick="toggleAdminPanelBox('${u.uid}','pass')">🔑 নতুন Password দিন</button>
         ${isSelf ? '' : `<button style="flex:1 1 30%;" onclick="toggleUserActive('${u.uid}', ${u.active === false})">${u.active === false ? '✅ Activate' : '⛔ Suspend'}</button>`}
         <button style="flex:1 1 30%;" onclick="resetUserPasswordAction('${u.uid}')">🔗 Reset Link</button>
@@ -1157,7 +1174,7 @@ function renderAdminUsers(users){
       </div>
       <div class="admin-box" id="box-profile-${u.uid}" style="display:none; margin-top:12px;">
         <div class="field"><label>নাম</label><input class="ab-name" type="text"></div>
-        <div class="field"><label>Email</label><input class="ab-email" type="email" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="field"><label>User ID বা Email</label><input class="ab-email" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
         <div class="field"><label>Role</label>
           <select class="ab-role" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); font-family:inherit; font-size:14px; background:var(--paper);">
             <option value="employee">Employee</option>
@@ -1183,30 +1200,36 @@ function renderAdminUsers(users){
     // quotes or special characters can never break the form.
     const pb = wrap.querySelector('#box-profile-' + u.uid);
     pb.querySelector('.ab-name').value = u.name || '';
-    pb.querySelector('.ab-email').value = u.email || '';
+    pb.querySelector('.ab-email').value = displayId(u.email);
     const roleSel = pb.querySelector('.ab-role');
     roleSel.value = u.role === 'admin' ? 'admin' : 'employee';
     if(isSelf){ roleSel.disabled = true; } // can't demote yourself
     const delBtn = wrap.querySelector('.del-btn');
-    if(delBtn) delBtn.onclick = () => deleteAdminUserConfirm(u.uid, u.email);
+    if(delBtn) delBtn.onclick = () => deleteAdminUserConfirm(u.uid, displayId(u.email));
     list.appendChild(wrap);
   });
 }
 
 async function createAdminUser(){
   const name = document.getElementById('admin-new-name').value.trim();
-  const email = document.getElementById('admin-new-email').value.trim();
+  const rawId = document.getElementById('admin-new-email').value.trim();
   const password = document.getElementById('admin-new-password').value.trim();
   const role = document.getElementById('admin-new-role').value;
   const errEl = document.getElementById('admin-new-error');
   const okEl = document.getElementById('admin-new-success');
   errEl.style.display = 'none'; okEl.style.display = 'none';
 
-  if(!email || !password){
-    errEl.textContent = 'Email ও Password আবশ্যক।';
+  if(!rawId || !password){
+    errEl.textContent = 'User ID (বা Email) ও Password আবশ্যক।';
     errEl.style.display = 'block';
     return;
   }
+  if(!rawId.includes('@') && !isValidUserId(rawId)){
+    errEl.textContent = 'User ID-তে শুধু English অক্ষর, সংখ্যা এবং . _ - ব্যবহার করুন (space ছাড়া, কমপক্ষে ৩ অক্ষর)। নাম বাংলায় লিখতে চাইলে উপরের Name ঘরে লিখুন।';
+    errEl.style.display = 'block';
+    return;
+  }
+  const email = toLoginEmail(rawId);
   try{
     const res = await fetch(`${BACKEND_URL}/api/admin/users`, {
       method: 'POST',
@@ -1215,7 +1238,7 @@ async function createAdminUser(){
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || 'ব্যর্থ হয়েছে');
-    okEl.textContent = `✓ Account তৈরি হয়েছে — ${email}`;
+    okEl.textContent = `✓ Account তৈরি হয়েছে — User ID: ${displayId(email)}`;
     okEl.style.display = 'block';
     document.getElementById('admin-new-name').value = '';
     document.getElementById('admin-new-email').value = '';
@@ -1265,14 +1288,19 @@ async function saveUserProfile(uid){
   const errEl = box.querySelector('.ab-err');
   errEl.style.display = 'none';
   const name = box.querySelector('.ab-name').value.trim();
-  const email = box.querySelector('.ab-email').value.trim();
+  const rawId = box.querySelector('.ab-email').value.trim();
   const roleSel = box.querySelector('.ab-role');
-  if(!email){
-    errEl.textContent = 'Email খালি রাখা যাবে না।';
+  if(!rawId){
+    errEl.textContent = 'User ID (বা Email) খালি রাখা যাবে না।';
     errEl.style.display = 'block';
     return;
   }
-  const body = { name, email };
+  if(!rawId.includes('@') && !isValidUserId(rawId)){
+    errEl.textContent = 'User ID-তে শুধু English অক্ষর, সংখ্যা এবং . _ - ব্যবহার করুন (space ছাড়া, কমপক্ষে ৩ অক্ষর)।';
+    errEl.style.display = 'block';
+    return;
+  }
+  const body = { name, email: toLoginEmail(rawId) };
   if(!roleSel.disabled) body.role = roleSel.value;
   try{
     await adminPatch(uid, body);
