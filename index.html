@@ -1104,7 +1104,7 @@ async function doLogin(){
     const code = (err && err.code) || '';
     let msg;
     if(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email','auth/invalid-login-credentials'].includes(code)){
-      msg = 'ভুল User ID অথবা Password।';
+      msg = 'ভুল User ID অথবা Password। (কোড: ' + code + ')';
     }else if(code === 'auth/too-many-requests'){
       msg = 'অনেকবার ভুল চেষ্টা হয়েছে — কিছুক্ষণ পরে আবার চেষ্টা করুন।';
     }else if(code === 'auth/network-request-failed'){
